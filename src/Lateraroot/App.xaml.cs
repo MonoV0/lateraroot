@@ -15,6 +15,7 @@ public partial class App : Application
     public string DataDirectory { get; private set; } = "";
     public string DesktopDirectory { get; private set; } = "";
     public bool IsSandbox { get; private set; }
+    public bool IsVerifying { get; private set; }
     public AppSettings Settings { get; set; } = new();
     public DesktopLibrary Library { get; private set; } = null!;
     public string SettingsPath => Path.Combine(DataDirectory, "settings.json");
@@ -27,6 +28,7 @@ public partial class App : Application
         {
             string? Arg(string name) { var index = Array.IndexOf(e.Args, name); return index >= 0 ? index + 1 < e.Args.Length ? e.Args[index + 1] : throw new ArgumentException($"{name} requires a path") : null; }
             IsSandbox = e.Args.Contains("--demo") || e.Args.Contains("--desktop-dir");
+            IsVerifying = e.Args.Contains("--verify-ui");
             if (e.Args.Contains("--verify-ui") && !e.Args.Contains("--demo")) throw new ArgumentException("--verify-ui requires --demo");
             DataDirectory = Path.GetFullPath(Arg("--data-dir") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lateraroot", IsSandbox ? "Demo" : "Data"));
             DesktopDirectory = Path.GetFullPath(Arg("--desktop-dir") ?? (IsSandbox ? Path.Combine(DataDirectory, "DemoDesktop") : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)));

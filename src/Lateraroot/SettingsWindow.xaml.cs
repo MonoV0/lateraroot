@@ -23,7 +23,7 @@ public partial class SettingsWindow : Window
         draft = JsonStore.Clone(App.Current.Settings);
         rules = new(draft.Stacks);
         RulesGrid.ItemsSource = rules;
-        EdgeBox.SelectedIndex = draft.Edge == DockEdge.Right ? 0 : 1;
+        EdgeBox.SelectedIndex = (int)draft.Edge;
         MonitorBox.ItemsSource = new[] { new MonitorChoice("", "メインディスプレイ") }.Concat(Forms.Screen.AllScreens.Select((s, i) => new MonitorChoice(s.DeviceName, $"{i + 1}: {s.Bounds.Width} × {s.Bounds.Height}"))).ToList();
         MonitorBox.SelectedValue = draft.Monitor;
         if (MonitorBox.SelectedIndex < 0) MonitorBox.SelectedIndex = 0;
@@ -33,7 +33,7 @@ public partial class SettingsWindow : Window
         startupWasEnabled = !App.Current.IsSandbox && StartupEnabled();
         StartupBox.IsChecked = startupWasEnabled;
         StartupBox.IsEnabled = !App.Current.IsSandbox;
-        SandboxLabel.Text = App.Current.IsSandbox ? "デモモード · 実際のデスクトップには触れません" : "Lateraroot 0.1.0 · MIT License";
+        SandboxLabel.Text = App.Current.IsSandbox ? "デモモード · 実際のデスクトップには触れません" : "Lateraroot 0.2.0 · MIT / Font: SIL OFL";
     }
 
     private void AddRule(object sender, RoutedEventArgs e)
@@ -61,7 +61,7 @@ public partial class SettingsWindow : Window
     {
         RulesGrid.CommitEdit(DataGridEditingUnit.Cell, true);
         RulesGrid.CommitEdit(DataGridEditingUnit.Row, true);
-        draft.Edge = EdgeBox.SelectedIndex == 0 ? DockEdge.Right : DockEdge.Left;
+        draft.Edge = (DockEdge)EdgeBox.SelectedIndex;
         draft.Monitor = (string?)MonitorBox.SelectedValue ?? "";
         draft.IncludePublicDesktop = PublicBox.IsChecked == true;
         draft.CloseDelayMs = int.Parse((string)((ComboBoxItem)DelayBox.SelectedItem).Tag);

@@ -23,9 +23,17 @@ jobs:
         run: dotnet run --project tests/Lateraroot.Core.Tests -c Release
       - name: Publish portable app
         run: dotnet publish src/Lateraroot/Lateraroot.csproj -c Release -r win-x64 --self-contained true -o artifacts/win-x64
+      - name: Verify packaged UI with isolated demo files
+        shell: pwsh
+        run: |
+          $testData = Join-Path $env:RUNNER_TEMP "lateraroot-ui-$env:GITHUB_RUN_ID"
+          $app = Start-Process artifacts/win-x64/Lateraroot.exe -ArgumentList '--demo','--verify-ui','--data-dir', $testData -Wait -PassThru -WindowStyle Hidden
+          $result = Get-Content (Join-Path $testData 'verification/result.json') -Raw | ConvertFrom-Json
+          if ($app.ExitCode -ne 0 -or !$result.Passed) { $result | ConvertTo-Json -Depth 5; throw 'UI verification failed' }
+          Write-Output "$($result.Checks.Count) UI checks passed"
       - name: Include documentation
         run: |
-          Copy-Item LICENSE,README.md,CONTRIBUTING.md artifacts/win-x64
+          Copy-Item LICENSE,README.md,CONTRIBUTING.md,THIRD_PARTY_NOTICES.md artifacts/win-x64
           Copy-Item docs artifacts/win-x64/docs -Recurse
       - uses: actions/upload-artifact@v4
         with:

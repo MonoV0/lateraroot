@@ -4,6 +4,37 @@ var root = Path.Combine(Path.GetTempPath(), "lateraroot-tests-" + Guid.NewGuid()
 Directory.CreateDirectory(root);
 var tests = new List<(string Name, Action Run)>
 {
+    ("All dock layouts stay within positive, negative-origin and scaled work areas", () =>
+    {
+        foreach (var area in new[] { new DockRect(0, 0, 2560, 1392), new DockRect(-1920, 120, 1920, 1040), new DockRect(0, -1200, 800, 1200) })
+        foreach (var scale in new[] { 1d, 1.5d, 2d })
+        foreach (var edge in Enum.GetValues<DockEdge>())
+        {
+            Inside(DockLayout.DesktopRail(area, edge, scale), area);
+            foreach (double offset in new[] { 0d, 0.5d, 1d })
+            foreach (bool expanded in new[] { false, true })
+            foreach (bool minimized in new[] { false, true })
+                Inside(DockLayout.Compact(area, edge, offset, scale, expanded, minimized), area);
+            for (int index = 0; index < 16; index++) Inside(DockLayout.Flyout(area, edge, index, 16, scale, 824, 804), area);
+        }
+        static void Inside(DockRect rect, DockRect area) => True(rect.X >= area.X && rect.Y >= area.Y && rect.Right <= area.Right + 0.001 && rect.Bottom <= area.Bottom + 0.001 && rect.Width > 0 && rect.Height > 0);
+    }),
+    ("Dragging snaps to all four screen edges with clamped position", () =>
+    {
+        var area = new DockRect(-1920, 0, 1920, 1080);
+        Equal(DockEdge.Left, DockLayout.Snap(area, -1919, 540, 1).Edge);
+        Equal(DockEdge.Right, DockLayout.Snap(area, -1, 540, 1).Edge);
+        Equal(DockEdge.Top, DockLayout.Snap(area, -960, 1, 1).Edge);
+        Equal(DockEdge.Bottom, DockLayout.Snap(area, -960, 1079, 1).Edge);
+        Equal(0d, DockLayout.Snap(area, -1919, 3, 1).Offset);
+        Equal(1d, DockLayout.Snap(area, -1919, 1077, 1).Offset);
+    }),
+    ("Existing settings retain custom rules and get safe presentation defaults", () =>
+    {
+        var settings = System.Text.Json.JsonSerializer.Deserialize<AppSettings>("{\"Stacks\":[{\"Id\":\"custom\",\"Name\":\"My files\",\"Filter\":\"*\",\"Color\":\"#123456\"}]}")!;
+        settings.Validate(); Equal(DockVisibility.Visible, settings.Visibility); Equal(0.5, settings.DockOffset); Equal("#123456", settings.Stacks.Single().Color);
+        settings.DockOffset = double.NaN; settings.Validate(); Equal(0.5, settings.DockOffset);
+    }),
     ("Rules match extensions case-insensitively; fallback never steals matches", () =>
     {
         var settings = new AppSettings();
@@ -23,6 +54,8 @@ var tests = new List<(string Name, Action Run)>
         settings = new(); settings.Stacks[0].Id = settings.Stacks[1].Id;
         Throws<InvalidDataException>(settings.Validate);
         settings = new(); settings.Stacks[0].Filter = "**.pdf";
+        Throws<InvalidDataException>(settings.Validate);
+        settings = new(); settings.Stacks[0].Color = "red";
         Throws<InvalidDataException>(settings.Validate);
     }),
     ("Scan, sort, search and public desktop are read-only", () =>

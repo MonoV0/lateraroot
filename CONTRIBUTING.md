@@ -11,6 +11,6 @@ dotnet build src/Lateraroot/Lateraroot.csproj -c Release
 dotnet run --project tests/Lateraroot.Core.Tests -c Release
 ```
 
-For UI changes, check hover open/close, keyboard access, left and right edges, empty stacks, search, and settings. For storage changes, verify original contents, collisions, journal recovery, and partial failures.
+For UI changes, check desktop/compact transitions, hover open/close, keyboard access, all four edges, dragging, minimize/hide/restore, empty genres, search, and settings. Run the isolated UI verifier documented in README. For storage changes, verify original contents, collisions, journal recovery, and partial failures. Keep the bundled font and its OFL license together.
 
 Describe the behavior changed and the checks performed. Avoid uploading personal desktop screenshots, settings, manifests, or file paths in issues.

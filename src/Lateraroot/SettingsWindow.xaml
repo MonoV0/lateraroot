@@ -3,30 +3,31 @@
         Style="{StaticResource {x:Type Window}}" MinWidth="650" MinHeight="580" WindowStartupLocation="CenterScreen" ShowInTaskbar="True" Topmost="True">
     <Grid Margin="26">
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-        <StackPanel Margin="0,0,0,20"><TextBlock Text="あなたのデスクトップに、居場所を。" FontSize="23" FontWeight="SemiBold" /><TextBlock Text="配置と分類ルールを選んで、必要なものだけをすぐそばに。" Foreground="{StaticResource Muted}" Margin="0,7,0,0" /></StackPanel>
+        <StackPanel Margin="0,0,0,20"><TextBlock Text="lateraroot / 設定" FontSize="23" FontWeight="SemiBold" /><TextBlock Text="デスクトップでは色ブロック、作業中はコンパクト表示に切り替わります。" Foreground="{StaticResource Muted}" Margin="0,7,0,0" /></StackPanel>
         <Grid Grid.Row="1" Margin="0,0,0,12">
             <Grid.ColumnDefinitions><ColumnDefinition Width="130" /><ColumnDefinition Width="*" /><ColumnDefinition Width="175" /></Grid.ColumnDefinitions>
-            <StackPanel Margin="0,0,12,0"><TextBlock Text="画面の端" Margin="0,0,0,7" /><ComboBox x:Name="EdgeBox" AutomationProperties.Name="画面の端"><ComboBoxItem Content="右端" /><ComboBoxItem Content="左端" /></ComboBox></StackPanel>
+            <StackPanel Margin="0,0,12,0"><TextBlock Text="画面の端" Margin="0,0,0,7" /><ComboBox x:Name="EdgeBox" AutomationProperties.Name="画面の端"><ComboBoxItem Content="右端" /><ComboBoxItem Content="左端" /><ComboBoxItem Content="上端" /><ComboBoxItem Content="下端" /></ComboBox></StackPanel>
             <StackPanel Grid.Column="1" Margin="0,0,12,0"><TextBlock Text="ディスプレイ" Margin="0,0,0,7" /><ComboBox x:Name="MonitorBox" DisplayMemberPath="Label" SelectedValuePath="Id" AutomationProperties.Name="ディスプレイ" /></StackPanel>
             <StackPanel Grid.Column="2"><TextBlock Text="閉じるまでの時間" Margin="0,0,0,7" /><ComboBox x:Name="DelayBox" AutomationProperties.Name="閉じるまでの時間"><ComboBoxItem Content="0.3 秒" Tag="300" /><ComboBoxItem Content="0.5 秒" Tag="500" /><ComboBoxItem Content="0.8 秒" Tag="800" /><ComboBoxItem Content="1.2 秒" Tag="1200" /><ComboBoxItem Content="2 秒" Tag="2000" /></ComboBox></StackPanel>
         </Grid>
         <StackPanel Grid.Row="2" Margin="0,0,0,12">
             <CheckBox x:Name="PublicBox" Content="共有デスクトップの項目も表示する（表示のみ）" />
             <CheckBox x:Name="StartupBox" Content="Windows へのサインイン時に起動する" />
-            <TextBlock Text="スタックと分類ルール" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,7" />
+            <TextBlock Text="ジャンルと分類ルール" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,7" />
             <TextBlock Text="上のルールを優先。拡張子をカンマ区切りで入力します。&#x0a;&lt;folders&gt; はフォルダー、* は未分類です。* を持つスタックを1つ残してください。" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
         <DataGrid x:Name="RulesGrid" Grid.Row="3" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False"
-                  SelectionMode="Single" SelectionUnit="FullRow" Background="#202633" Foreground="#EDF0FA" RowBackground="#202633" AlternatingRowBackground="#252C3B"
-                  GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#353D50" BorderBrush="#394258" HeadersVisibility="Column" RowHeaderWidth="0" RowHeight="36">
+                  SelectionMode="Single" SelectionUnit="FullRow" Background="#FFFFFF" Foreground="#171717" RowBackground="#FFFFFF" AlternatingRowBackground="#FAFAFA"
+                  GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#E6E6E6" BorderBrush="#D0D0D0" HeadersVisibility="Column" RowHeaderWidth="0" RowHeight="36">
             <DataGrid.Resources>
-                <Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#30384D" /><Setter Property="Foreground" Value="#EDF0FA" /><Setter Property="Padding" Value="8,10" /></Style>
+                <Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#F2F2F2" /><Setter Property="Foreground" Value="#171717" /><Setter Property="Padding" Value="8,10" /></Style>
                 <Style TargetType="DataGridCell"><Setter Property="Padding" Value="6,3" /><Setter Property="BorderThickness" Value="0" /><Setter Property="VerticalContentAlignment" Value="Center" /></Style>
-                <Style TargetType="TextBlock"><Setter Property="Foreground" Value="#EDF0FA" /><Setter Property="VerticalAlignment" Value="Center" /></Style>
+                <Style TargetType="TextBlock"><Setter Property="Foreground" Value="#171717" /><Setter Property="VerticalAlignment" Value="Center" /></Style>
             </DataGrid.Resources>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="記号" Binding="{Binding Symbol}" Width="55" />
-                <DataGridTextColumn Header="スタック名" Binding="{Binding Name}" Width="150" />
+                <DataGridTextColumn Header="スタック名" Binding="{Binding Name}" Width="125" />
+                <DataGridTextColumn Header="色 (#RRGGBB)" Binding="{Binding Color}" Width="105" />
                 <DataGridTextColumn Header="分類ルール" Binding="{Binding Filter}" Width="*" />
             </DataGrid.Columns>
         </DataGrid>
@@ -43,7 +44,7 @@
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center"><TextBlock x:Name="SandboxLabel" FontSize="10" Foreground="{StaticResource Muted}" /><Button Content="収納フォルダーを開く ↗" Click="OpenStorage" HorizontalAlignment="Left" Padding="0,5" Background="Transparent" FontSize="11" /></StackPanel>
             <Button Grid.Column="1" Content="キャンセル" IsCancel="True" Padding="16,10" Margin="8,0" />
-            <Button Grid.Column="2" Content="保存する" Click="SaveSettings" IsDefault="True" Padding="22,10" Background="#BCB0FF" Foreground="#171B26" />
+            <Button Grid.Column="2" Content="保存する" Click="SaveSettings" IsDefault="True" Padding="22,10" Background="#171717" Foreground="#FFFFFF" />
         </Grid>
     </Grid>
 </Window>
