@@ -1,0 +1,64 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build
+        run: dotnet build src/Lateraroot/Lateraroot.csproj -c Release
+      - name: Storage and classification tests
+        run: dotnet run --project tests/Lateraroot.Core.Tests -c Release
+      - name: Publish portable app
+        run: dotnet publish src/Lateraroot/Lateraroot.csproj -c Release -r win-x64 --self-contained true -o artifacts/win-x64
+      - name: Include documentation
+        run: |
+          Copy-Item LICENSE,README.md,CONTRIBUTING.md artifacts/win-x64
+          Copy-Item docs artifacts/win-x64/docs -Recurse
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lateraroot-win-x64
+          path: artifacts/win-x64/
+      - name: Package release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $archive = "lateraroot-$env:GITHUB_REF_NAME-win-x64.zip"
+          Compress-Archive artifacts/win-x64/* $archive
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $archive" | Set-Content "$archive.sha256" -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: release-package
+          path: lateraroot-*.zip*
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: release
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" release/* --title "Lateraroot $RELEASE_TAG" --generate-notes
