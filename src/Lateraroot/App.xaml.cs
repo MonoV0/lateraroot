@@ -12,6 +12,8 @@ namespace Lateraroot;
 public partial class App : Application
 {
     private Mutex? instance;
+    private UpdateSession? updates;
+    public UpdateSession Updates => updates ??= new(new ApplicationUpdater());
     public string DataDirectory { get; private set; } = "";
     public string DesktopDirectory { get; private set; } = "";
     public bool IsSandbox { get; private set; }
@@ -30,6 +32,8 @@ public partial class App : Application
             IsSandbox = e.Args.Contains("--demo") || e.Args.Contains("--desktop-dir");
             IsVerifying = e.Args.Contains("--verify-ui");
             if (e.Args.Contains("--verify-ui") && !e.Args.Contains("--demo")) throw new ArgumentException("--verify-ui requires --demo");
+            bool updateVerification = e.Args.Any(a => a.StartsWith("--verify-update", StringComparison.Ordinal));
+            if (updateVerification && !e.Args.Contains("--demo")) throw new ArgumentException("Update verification requires --demo");
             DataDirectory = Path.GetFullPath(Arg("--data-dir") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lateraroot", IsSandbox ? "Demo" : "Data"));
             DesktopDirectory = Path.GetFullPath(Arg("--desktop-dir") ?? (IsSandbox ? Path.Combine(DataDirectory, "DemoDesktop") : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)));
             if (DataDirectory.Equals(DesktopDirectory, StringComparison.OrdinalIgnoreCase) || DataDirectory.StartsWith(DesktopDirectory.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
@@ -49,6 +53,7 @@ public partial class App : Application
             if (IsSandbox && e.Args.Contains("--demo")) CreateDemo();
             Library = new DesktopLibrary(DataDirectory, DesktopDirectory, IsSandbox ? null : Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory));
             Trace("Library initialized");
+            if (updateVerification) { Dispatcher.BeginInvoke(async () => await UpdateVerification.RunAsync(e.Args)); return; }
             var window = new MainWindow();
             Trace("Window constructed");
             MainWindow = window;

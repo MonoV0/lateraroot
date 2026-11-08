@@ -16,9 +16,19 @@
 
 1. [Releases](https://github.com/MonoV0/lateraroot/releases) から `lateraroot-*-win-x64.zip` をダウンロードします。
 2. ZIP を任意のフォルダーへ**すべて展開**します。
-3. `Lateraroot.exe` を起動します。デスクトップでは正方形のファイルウィジェット、アプリの作業中はコンパクトなレールが表示されます。
+3. 展開先の直下にある `Lateraroot.exe` を起動します。`current` や `Update.exe` も同じ場所に保ってください。デスクトップでは正方形のファイルウィジェット、アプリの作業中はコンパクトなレールが表示されます。
 
-旧版から更新する場合は、まず通知領域から旧版を終了し、新しい ZIP を別フォルダーへ展開して起動してください。分類設定と収納履歴は同じ保存先から読み込みます。サインイン時起動を利用中で実行ファイルの場所を変えた場合は、設定で一度オフ→オンにして起動先を更新してください。
+**v0.3以前からは最初の1回だけ手動更新が必要です。** 通知領域から旧版を終了し、v0.4以降のZIPを別フォルダーへ展開して起動してください。分類設定と収納履歴は同じ保存先から読み込みます。サインイン時起動を利用中で実行ファイルの場所を変えた場合は、設定で一度オフ→オンにして起動先を更新してください。
+
+### アプリ内アップデート
+
+![アプリ内アップデート画面](docs/update.png)
+
+通知領域を右クリック →「更新を確認」、または設定の「更新を確認」から、**確認 → ダウンロード → 更新して再起動**を実行できます。設定画面から実行する場合は、編集中の設定を保存して更新します。ファイルの整理・復元中は再起動できません。
+
+起動時と1日ごとに新しい正式リリースを確認し、見つかると通知します。自動でダウンロードや適用はしません。「新しいバージョンを自動で確認」は設定からオフにできます。通信エラーは再試行でき、ダウンロード中は中止できます。検証に失敗した更新は適用しません。ダウンロード後に閉じた場合も、次回起動時に「更新して再起動」で適用できます。
+
+更新対象はアプリ本体です。`%LOCALAPPDATA%\Lateraroot\Data` の設定・収納履歴・実ファイルを残します。ZIP全体を書き込み可能なフォルダーへ展開して使ってください。開発用の `dotnet run`、素のpublishフォルダー、デモではアプリ内更新を無効にし、リリースページを案内します。
 
 Windows 10 / 11（64 bit）向けです。配布 ZIP は .NET 同梱で、管理者権限や別途ランタイムのインストールは不要です。初期版はコード署名がありません。
 
@@ -66,11 +76,11 @@ Windows 10 / 11（64 bit）向けです。配布 ZIP は .NET 同梱で、管理
 
 移動前に復元記録をディスクへ保存します。アプリが終了しても実ファイルは `Vault` に残り、エクスプローラーからアクセスできます。バックアップは **Data フォルダー全体**を保存してください。アプリを削除する前に、各スタックの「元に戻す」で必要な項目を復元してください。収納中のファイルは元のパスが変わるため、ほかのアプリの参照先やショートカットのリンク先に影響する場合があります。
 
-アプリ内のネットワーク通信・アカウント・テレメトリーはありません。シェルのアイコン取得やファイルを開く際は Windows の関連付けが使われます。
+更新の自動確認が有効なとき、または手動で確認・ダウンロードしたときに、GitHubの公開リリースAPIと配布先へHTTPS通信します。設定・ファイル名・収納データは送信しません。GitHubアカウントやテレメトリーは使いません。シェルのアイコン取得やファイルを開く際は Windows の関連付けが使われます。
 
 ## 開発
 
-[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) と Windows が必要です。WPF / Windows Forms の標準ライブラリを使い、外部のアプリケーション用 NuGet パッケージには依存しません。
+[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) と Windows が必要です。WPF / Windows Forms と、更新用の [Velopack](https://github.com/velopack/velopack) 1.2.161（MIT）を使います。WebViewは使いません。
 
 メインフォントは同梱の **Zen Kaku Gothic New Medium** です。Windows へのフォントインストールは不要です。Light / Regular は未使用のため同梱していません。
 
@@ -99,9 +109,13 @@ dotnet run --project src/Lateraroot -- --demo --verify-ui --data-dir C:\temp\lat
 
 ```powershell
 dotnet publish src/Lateraroot/Lateraroot.csproj -c Release -r win-x64 --self-contained true -o artifacts/win-x64
+dotnet tool install vpk --version 1.2.161 --tool-path artifacts/tools
+Copy-Item LICENSE,README.md,CONTRIBUTING.md,THIRD_PARTY_NOTICES.md,Velopack-LICENSE.txt artifacts/win-x64
+Copy-Item docs artifacts/win-x64/docs -Recurse
+./scripts/Package.ps1 -PublishDirectory artifacts/win-x64 -OutputDirectory artifacts/releases -Vpk artifacts/tools/vpk.exe
 ```
 
-GitHub Actions でもテストと Windows 向けビルドを実行します。`v*` タグを push すると ZIP と SHA-256 をリリースに添付します。
+GitHub Actionsでも単体テスト・配布ZIPのUI検証に加え、実パッケージをテスト用の次版へ更新して再起動し、設定・収納履歴・実ファイルのハッシュが一致すること、破損パッケージを拒否することを検証します。テスト版は公開しません。`v*` タグをpushすると、ZIP・SHA-256・更新用の `.nupkg`・`releases.win.json` を同じGitHub Releaseに添付します。タグとcsprojのVersionを一致させてください。更新識別子 `LaterarootApp` はユーザーデータの保存先 `Lateraroot` と分けているため、変更しないでください。
 
 ## 現在の範囲
 

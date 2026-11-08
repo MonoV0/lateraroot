@@ -15,7 +15,7 @@ public partial class SettingsWindow : Window
 {
     private readonly AppSettings draft;
     private ObservableCollection<StackRule> rules;
-    private readonly bool startupWasEnabled;
+    private bool startupWasEnabled;
 
     public SettingsWindow()
     {
@@ -25,6 +25,7 @@ public partial class SettingsWindow : Window
         SizeBox.SelectedValue = draft.TileSize;
         OffsetBox.Value = draft.DockOffset;
         ReduceMotionBox.IsChecked = draft.ReduceMotion;
+        UpdatesBox.IsChecked = draft.CheckForUpdates;
         double scale = WindowPlacement.Scale(this, WindowPlacement.Screen);
         MaxHeight = Math.Max(340, WindowPlacement.Screen.WorkingArea.Height / scale - 24);
         MinHeight = Math.Min(MinHeight, MaxHeight); Height = Math.Min(Height, MaxHeight);
@@ -40,7 +41,7 @@ public partial class SettingsWindow : Window
         startupWasEnabled = !App.Current.IsSandbox && StartupEnabled();
         StartupBox.IsChecked = startupWasEnabled;
         StartupBox.IsEnabled = !App.Current.IsSandbox;
-        SandboxLabel.Text = App.Current.IsSandbox ? "デモモード · 実際のデスクトップには触れません" : "Lateraroot 0.3.0 · MIT / Font: SIL OFL";
+        SandboxLabel.Text = App.Current.IsSandbox ? "デモモード · 実際のデスクトップには触れません" : $"Lateraroot {AppInfo.Version} · MIT / Font: SIL OFL";
     }
 
     private void SizePreviewChanged(object sender, SelectionChangedEventArgs e)
@@ -71,6 +72,15 @@ public partial class SettingsWindow : Window
 
     private void SaveSettings(object sender, RoutedEventArgs e)
     {
+        try { SaveDraft(); DialogResult = true; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or InvalidDataException)
+        { MessageBox.Show(this, ex.Message, "設定を保存できませんでした", MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+
+    private void OpenUpdates(object sender, RoutedEventArgs e) => UpdateWindow.ShowFor(this, SaveDraft);
+
+    private void SaveDraft()
+    {
         RulesGrid.CommitEdit(DataGridEditingUnit.Cell, true);
         RulesGrid.CommitEdit(DataGridEditingUnit.Row, true);
         draft.Edge = (DockEdge)EdgeBox.SelectedIndex;
@@ -81,18 +91,14 @@ public partial class SettingsWindow : Window
         draft.TileSize = (int?)SizeBox.SelectedValue ?? 88;
         draft.DockOffset = OffsetBox.Value;
         draft.ReduceMotion = ReduceMotionBox.IsChecked == true;
+        draft.CheckForUpdates = UpdatesBox.IsChecked == true;
         bool startupChanged = !App.Current.IsSandbox && (StartupBox.IsChecked == true) != startupWasEnabled;
-        try
-        {
-            draft.Validate();
-            if (startupChanged) SetStartup(StartupBox.IsChecked == true);
-            try { JsonStore.Write(App.Current.SettingsPath, draft); }
-            catch { if (startupChanged) SetStartup(startupWasEnabled); throw; }
-            App.Current.Settings = draft;
-            DialogResult = true;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or InvalidDataException)
-        { MessageBox.Show(this, ex.Message, "設定を保存できませんでした", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        draft.Validate();
+        if (startupChanged) SetStartup(StartupBox.IsChecked == true);
+        try { JsonStore.Write(App.Current.SettingsPath, draft); }
+        catch { if (startupChanged) SetStartup(startupWasEnabled); throw; }
+        App.Current.Settings = JsonStore.Clone(draft);
+        startupWasEnabled = StartupBox.IsChecked == true;
     }
 
     private static bool StartupEnabled()

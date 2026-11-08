@@ -23,35 +23,46 @@ jobs:
         run: dotnet run --project tests/Lateraroot.Core.Tests -c Release
       - name: Publish portable app
         run: dotnet publish src/Lateraroot/Lateraroot.csproj -c Release -r win-x64 --self-contained true -o artifacts/win-x64
-      - name: Verify packaged UI with isolated demo files
+      - name: Include documentation
+        run: |
+          Copy-Item LICENSE,README.md,CONTRIBUTING.md,THIRD_PARTY_NOTICES.md,Velopack-LICENSE.txt artifacts/win-x64
+          Copy-Item docs artifacts/win-x64/docs -Recurse
+      - name: Package update-capable portable app
+        shell: pwsh
+        run: |
+          dotnet tool install vpk --version 1.2.161 --tool-path artifacts/tools
+          if ($LASTEXITCODE -ne 0) { throw 'vpk installation failed' }
+          $version = ([xml](Get-Content src/Lateraroot/Lateraroot.csproj)).Project.PropertyGroup.Version
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag and application version differ' }
+          "APP_VERSION=$version" >> $env:GITHUB_ENV
+          ./scripts/Package.ps1 -PublishDirectory artifacts/win-x64 -OutputDirectory artifacts/releases -Version $version -Vpk artifacts/tools/vpk.exe
+      - name: Verify distributed UI with isolated demo files
         shell: pwsh
         run: |
           $testData = Join-Path $env:RUNNER_TEMP "lateraroot-ui-$env:GITHUB_RUN_ID"
-          $app = Start-Process artifacts/win-x64/Lateraroot.exe -ArgumentList '--demo','--verify-ui','--data-dir', $testData -Wait -PassThru -WindowStyle Hidden
+          Expand-Archive "artifacts/releases/lateraroot-v$env:APP_VERSION-win-x64.zip" artifacts/verified
+          $app = Start-Process artifacts/verified/Lateraroot.exe -ArgumentList "--demo --verify-ui --data-dir `"$testData`"" -Wait -PassThru -WindowStyle Hidden
           $result = Get-Content (Join-Path $testData 'verification/result.json') -Raw | ConvertFrom-Json
           if ($app.ExitCode -ne 0 -or !$result.Passed) { $result | ConvertTo-Json -Depth 5; throw 'UI verification failed' }
           Write-Output "$($result.Checks.Count) UI checks passed"
-      - name: Include documentation
-        run: |
-          Copy-Item LICENSE,README.md,CONTRIBUTING.md,THIRD_PARTY_NOTICES.md artifacts/win-x64
-          Copy-Item docs artifacts/win-x64/docs -Recurse
-      - uses: actions/upload-artifact@v4
-        with:
-          name: lateraroot-win-x64
-          path: artifacts/win-x64/
-      - name: Package release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Verify update, restart, data preservation and corrupt download rejection
         shell: pwsh
         run: |
-          $archive = "lateraroot-$env:GITHUB_REF_NAME-win-x64.zip"
-          Compress-Archive artifacts/win-x64/* $archive
-          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  $archive" | Set-Content "$archive.sha256" -Encoding utf8
+          $v = [version]$env:APP_VERSION
+          $next = "$($v.Major).$($v.Minor).$($v.Build + 1)"
+          dotnet publish src/Lateraroot/Lateraroot.csproj -c Release -r win-x64 --self-contained true -p:Version=$next -o artifacts/test-next
+          if ($LASTEXITCODE -ne 0) { throw 'Update fixture build failed' }
+          ./artifacts/tools/vpk.exe pack --packId LaterarootApp --packTitle Lateraroot --packVersion $next --packDir artifacts/test-next --mainExe Lateraroot.exe --outputDir artifacts/test-feed --runtime win-x64 --noInst --delta None --yes --skip-updates
+          if ($LASTEXITCODE -ne 0) { throw 'Update fixture packaging failed' }
+          $archive = "artifacts/releases/lateraroot-v$env:APP_VERSION-win-x64.zip"
+          ./scripts/Verify-Update.ps1 -Archive $archive -Feed artifacts/test-feed -TestRoot "$env:RUNNER_TEMP/update-roundtrip-$env:GITHUB_RUN_ID" -ExpectedVersion $next
+          Copy-Item artifacts/test-feed artifacts/corrupt-feed -Recurse
+          Get-ChildItem artifacts/corrupt-feed -Filter '*.nupkg' | ForEach-Object { [IO.File]::WriteAllBytes($_.FullName, [byte[]](0,1,2,3)) }
+          ./scripts/Verify-Update.ps1 -Archive $archive -Feed artifacts/corrupt-feed -TestRoot "$env:RUNNER_TEMP/update-rejection-$env:GITHUB_RUN_ID" -RejectCorruptPackage
       - uses: actions/upload-artifact@v4
-        if: startsWith(github.ref, 'refs/tags/v')
         with:
           name: release-package
-          path: lateraroot-*.zip*
+          path: artifacts/releases/*
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -60,6 +71,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: release-package
@@ -69,4 +81,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" release/* --title "Lateraroot $RELEASE_TAG" --generate-notes
+        run: gh release create "$RELEASE_TAG" release/* --title "Lateraroot $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md

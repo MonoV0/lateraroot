@@ -33,6 +33,7 @@ public sealed class AppSettings
     public DockVisibility Visibility { get; set; } = DockVisibility.Visible;
     public int TileSize { get; set; } = 88;
     public bool ReduceMotion { get; set; }
+    public bool CheckForUpdates { get; set; } = true;
     public List<StackRule> Stacks { get; set; } = Defaults();
 
     public static List<StackRule> Defaults() =>

@@ -21,6 +21,8 @@ public partial class MainWindow : Window
 {
     private readonly DispatcherTimer closeTimer = new();
     private readonly DispatcherTimer refreshTimer = new() { Interval = TimeSpan.FromMilliseconds(650) };
+    private readonly DispatcherTimer updateTimer = new() { Interval = TimeSpan.FromDays(1) };
+    internal bool CanRestartForUpdate => !busy;
     private readonly List<FileSystemWatcher> watchers = [];
     private readonly Forms.NotifyIcon tray;
     private IReadOnlyList<DesktopItem> allItems = [];
@@ -52,10 +54,13 @@ public partial class MainWindow : Window
         menu.Items.Add("最小化", null, (_, _) => Dispatcher.Invoke(() => SetDockVisibility(DockVisibility.Minimized)));
         menu.Items.Add("非表示", null, (_, _) => Dispatcher.Invoke(() => SetDockVisibility(DockVisibility.Hidden)));
         menu.Items.Add("設定", null, (_, _) => Dispatcher.Invoke(OpenSettings));
+        menu.Items.Add("更新を確認", null, (_, _) => Dispatcher.Invoke(OpenUpdates));
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("終了", null, (_, _) => Dispatcher.Invoke(() => Host.Shutdown()));
         tray.ContextMenuStrip = menu;
         tray.DoubleClick += (_, _) => Dispatcher.Invoke(RestoreDock);
+        tray.BalloonTipClicked += (_, _) => Dispatcher.Invoke(OpenUpdates);
+        updateTimer.Tick += async (_, _) => await CheckUpdatesInBackground();
         Loaded += (_, _) =>
         {
             if (ready) return;
@@ -72,13 +77,14 @@ public partial class MainWindow : Window
                 WindowPlacement.DesktopAnchor = contextMonitor.DesktopHandle;
             }
             ApplyPresentation();
+            if (!Host.IsSandbox) { updateTimer.Start(); _ = CheckUpdatesInBackground(); }
         };
         DpiChanged += (_, _) => { if (ready) Dispatcher.BeginInvoke(PlaceDock); };
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += DisplayChanged;
         Closed += (_, _) =>
         {
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= DisplayChanged;
-            closeTimer.Stop(); refreshTimer.Stop(); contextMonitor?.Dispose();
+            closeTimer.Stop(); refreshTimer.Stop(); updateTimer.Stop(); contextMonitor?.Dispose();
             foreach (var watcher in watchers) watcher.Dispose();
             desktopEdge?.Close(); tray.Dispose();
             UnregisterHotKey(new WindowInteropHelper(this).Handle, 1); source?.RemoveHook(WindowMessage);
@@ -453,12 +459,26 @@ public partial class MainWindow : Window
         try
         {
             var dialog = new SettingsWindow { Owner = this };
-            if (dialog.ShowDialog() == true)
-            {
-                RestartWatchers();
-                RefreshFiles(); ApplyPresentation();
-            }
+            dialog.ShowDialog();
+            RestartWatchers(); RefreshFiles(); ApplyPresentation();
         }
+        finally { EndModal(); }
+    }
+
+    private async Task CheckUpdatesInBackground()
+    {
+        if (!Host.Settings.CheckForUpdates || Host.Updates.Snapshot.IsBusy) return;
+        if (Host.Updates.Snapshot.Stage == UpdateStage.Unsupported) return;
+        await Host.Updates.CheckAsync();
+        if (!Dispatcher.HasShutdownStarted && !Host.Windows.OfType<UpdateWindow>().Any() && Host.Updates.Snapshot.Stage is UpdateStage.Available or UpdateStage.Ready)
+            tray.ShowBalloonTip(8000, "Lateraroot の更新", $"バージョン {Host.Updates.Snapshot.TargetVersion} が利用できます。クリックして確認できます。", Forms.ToolTipIcon.Info);
+    }
+
+    private void OpenUpdates()
+    {
+        if (Host.Windows.OfType<UpdateWindow>().FirstOrDefault() is { } existing) { existing.Activate(); return; }
+        modalDepth++; closeTimer.Stop();
+        try { UpdateWindow.ShowFor(this); }
         finally { EndModal(); }
     }
 

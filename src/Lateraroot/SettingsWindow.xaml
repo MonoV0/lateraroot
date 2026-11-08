@@ -70,7 +70,8 @@
             <WrapPanel>
                 <CheckBox x:Name="PublicBox" Content="共有デスクトップも表示（移動しません）" Margin="0,8,24,8"/>
                 <CheckBox x:Name="StartupBox" Content="サインイン時に起動" Margin="0,8,24,8"/>
-                <CheckBox x:Name="ReduceMotionBox" Content="動きを減らす" ToolTip="Windowsのアニメーション設定にも自動で従います"/>
+                <CheckBox x:Name="ReduceMotionBox" Content="動きを減らす" ToolTip="Windowsのアニメーション設定にも自動で従います" Margin="0,8,24,8"/>
+                <CheckBox x:Name="UpdatesBox" Content="新しいバージョンを自動で確認" ToolTip="起動時と1日ごとにGitHubへ確認します。ダウンロードと適用は手動です。" Margin="0,8,0,0"/>
             </WrapPanel>
             <TextBlock Text="ジャンルと分類ルール" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,7"/>
             <TextBlock Text="上のルールを優先。拡張子をカンマ区切りで入力します。&#10;&lt;folders&gt; はフォルダー、* は未分類です。* を持つスタックを1つ残してください。" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"/>
@@ -122,6 +123,7 @@
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center">
                 <TextBlock x:Name="SandboxLabel" FontSize="10" Foreground="{StaticResource Muted}"/>
+                <Button Content="更新を確認 ↗" Click="OpenUpdates" HorizontalAlignment="Left" Padding="0,5" Background="Transparent" FontSize="11"/>
                 <Button Content="収納フォルダーを開く ↗" Click="OpenStorage" HorizontalAlignment="Left" Padding="0,5" Background="Transparent" FontSize="11"/>
             </StackPanel>
             <Button Grid.Column="1" Content="キャンセル" IsCancel="True" Padding="16,10" Margin="8,0"/>

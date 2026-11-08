@@ -102,6 +102,14 @@ public partial class MainWindow
             var settings = new SettingsWindow(); settings.Show(); await Settled();
             Check(settings.IsVisible && settings.FontFamily.Source.Contains("Zen Kaku Gothic New"), "The widget editor uses the same type system");
             Capture(settings, "settings.png"); settings.Close();
+            var updateProvider = new UiUpdateProvider(); var updateSession = new UpdateSession(updateProvider);
+            var updateDialog = new UpdateWindow(updateSession, null); updateDialog.Show(); await Settled();
+            Check(updateSession.Snapshot.Stage == UpdateStage.Available && updateDialog.UpdateAction.IsEnabled && (string)updateDialog.UpdateAction.Content == "ダウンロード", "Update dialog shows available release and explicit download");
+            var downloadingUpdate = updateDialog.PerformActionAsync(); await Settled();
+            Check(updateSession.Snapshot.Stage == UpdateStage.Downloading && updateDialog.DownloadProgress.IsVisible && !updateDialog.UpdateAction.IsEnabled && (string)updateDialog.DismissButton.Content == "中止", "Update dialog exposes progress and cancel without duplicate downloads");
+            updateProvider.Finish.SetResult(); await downloadingUpdate; await Settled();
+            Check(updateSession.Snapshot.Stage == UpdateStage.Ready && updateDialog.UpdateAction.IsEnabled && (string)updateDialog.UpdateAction.Content == "更新して再起動", "Update requires explicit restart after verification");
+            Capture(updateDialog, "update.png"); updateDialog.Close();
             SelectStack("documents"); pinned = true;
             int total = allItems.Count;
             var stored = Host.Library.Organize(allItems.Where(x => x.CanOrganize));
