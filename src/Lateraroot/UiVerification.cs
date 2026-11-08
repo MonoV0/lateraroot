@@ -254,7 +254,10 @@ public partial class MainWindow
             await Task.Delay(250); Check(Math.Abs(hoverInk.Opacity - .08) < .001, "Hover reaches visible feedback");
             hoverButton.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseLeaveEvent });
             await Task.Delay(180); Check(hoverInk.Opacity == 0, "Hover exit releases its state layer");
-            SetDockVisibility(DockVisibility.Minimized); await Task.Delay(60); Check(Frame.Opacity is > 0 and < 1, "Minimize fades the current surface before switching");
+            SetDockVisibility(DockVisibility.Minimized);
+            // A busy runner may resume a 60ms delay after the entire 140ms fade.
+            // Check scheduling synchronously, then verify its eventual final state.
+            Check(hidingSurface && Frame.HasAnimatedProperties && Rail.IsVisible && !MinimizedTab.IsVisible, "Minimize schedules its fade before switching the current surface");
             await Task.Delay(500); Check(MinimizedTab.IsVisible && MinimizedTab.Opacity == 1, "Minimize completes with a stable access tab");
             RestoreDock(); SetDockVisibility(DockVisibility.Hidden); await Task.Delay(35); RestoreDock(); await Task.Delay(500);
             Check(IsVisible && Host.Settings.Visibility == DockVisibility.Visible && Frame.Opacity == 1, "Rapid restore invalidates a pending hide callback");
