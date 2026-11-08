@@ -4,6 +4,21 @@ var root = Path.Combine(Path.GetTempPath(), "lateraroot-tests-" + Guid.NewGuid()
 Directory.CreateDirectory(root);
 var tests = new List<(string Name, Action Run)>
 {
+    ("Widget cells remain square, contained and disjoint at every edge and scale", () =>
+    {
+        foreach (var area in new[] { new DockRect(0, 0, 2560, 1392), new DockRect(-1920, 0, 1920, 1040), new DockRect(0, -1200, 800, 1200) })
+        foreach (double scale in new[] { 1d, 1.5, 2d })
+        foreach (var edge in Enum.GetValues<DockEdge>())
+        foreach (int size in new[] { 72, 88, 112 })
+        {
+            var cells = Enumerable.Range(0, 17).Select(i => DockLayout.DesktopCell(area, edge, scale, i, 16, size, .5)).ToList();
+            for (int i = 0; i < cells.Count; i++)
+            {
+                var c = cells[i]; True(c.Width == c.Height && c.X >= area.X && c.Y >= area.Y && c.Right <= area.Right + .001 && c.Bottom <= area.Bottom + .001);
+                for (int j = i + 1; j < cells.Count; j++) True(c.Right <= cells[j].X + .001 || cells[j].Right <= c.X + .001 || c.Bottom <= cells[j].Y + .001 || cells[j].Bottom <= c.Y + .001);
+            }
+        }
+    }),
     ("All dock layouts stay within positive, negative-origin and scaled work areas", () =>
     {
         foreach (var area in new[] { new DockRect(0, 0, 2560, 1392), new DockRect(-1920, 120, 1920, 1040), new DockRect(0, -1200, 800, 1200) })

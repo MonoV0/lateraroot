@@ -21,6 +21,13 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent();
         draft = JsonStore.Clone(App.Current.Settings);
+        SizeBox.ItemsSource = Enumerable.Range(9, 6).Select(i => new SizeChoice(i * 8, $"{i * 8} × {i * 8} px")).ToList();
+        SizeBox.SelectedValue = draft.TileSize;
+        OffsetBox.Value = draft.DockOffset;
+        ReduceMotionBox.IsChecked = draft.ReduceMotion;
+        double scale = WindowPlacement.Scale(this, WindowPlacement.Screen);
+        MaxHeight = Math.Max(340, WindowPlacement.Screen.WorkingArea.Height / scale - 24);
+        MinHeight = Math.Min(MinHeight, MaxHeight); Height = Math.Min(Height, MaxHeight);
         rules = new(draft.Stacks);
         RulesGrid.ItemsSource = rules;
         EdgeBox.SelectedIndex = (int)draft.Edge;
@@ -33,7 +40,12 @@ public partial class SettingsWindow : Window
         startupWasEnabled = !App.Current.IsSandbox && StartupEnabled();
         StartupBox.IsChecked = startupWasEnabled;
         StartupBox.IsEnabled = !App.Current.IsSandbox;
-        SandboxLabel.Text = App.Current.IsSandbox ? "デモモード · 実際のデスクトップには触れません" : "Lateraroot 0.2.0 · MIT / Font: SIL OFL";
+        SandboxLabel.Text = App.Current.IsSandbox ? "デモモード · 実際のデスクトップには触れません" : "Lateraroot 0.3.0 · MIT / Font: SIL OFL";
+    }
+
+    private void SizePreviewChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SizeBox.SelectedValue is int side && SquarePreview is not null) SquarePreview.Width = SquarePreview.Height = side;
     }
 
     private void AddRule(object sender, RoutedEventArgs e)
@@ -66,6 +78,9 @@ public partial class SettingsWindow : Window
         draft.IncludePublicDesktop = PublicBox.IsChecked == true;
         draft.CloseDelayMs = int.Parse((string)((ComboBoxItem)DelayBox.SelectedItem).Tag);
         draft.Stacks = rules.ToList();
+        draft.TileSize = (int?)SizeBox.SelectedValue ?? 88;
+        draft.DockOffset = OffsetBox.Value;
+        draft.ReduceMotion = ReduceMotionBox.IsChecked == true;
         bool startupChanged = !App.Current.IsSandbox && (StartupBox.IsChecked == true) != startupWasEnabled;
         try
         {
@@ -94,3 +109,5 @@ public partial class SettingsWindow : Window
 }
 
 public sealed record MonitorChoice(string Id, string Label);
+
+public sealed record SizeChoice(int Value, string Label);

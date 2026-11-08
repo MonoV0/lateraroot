@@ -11,6 +11,7 @@ internal sealed class DesktopContextMonitor : IDisposable
     private readonly Action<bool> changed;
     private readonly IntPtr hook;
     public bool IsDesktop { get; private set; }
+    public IntPtr DesktopHandle { get; private set; }
 
     public DesktopContextMonitor(Action<bool> changed)
     {
@@ -30,7 +31,9 @@ internal sealed class DesktopContextMonitor : IDisposable
         // Taskbar and shell menus do not change the underlying desktop/application context.
         if (value is "Shell_TrayWnd" or "Shell_SecondaryTrayWnd" or "#32768") return;
         bool desktop = hwnd == GetShellWindow() || IsDesktopClass(value);
-        if (desktop == IsDesktop) return;
+        bool hostChanged = desktop && DesktopHandle != hwnd;
+        if (desktop) DesktopHandle = hwnd;
+        if (desktop == IsDesktop && !hostChanged) return;
         IsDesktop = desktop; changed(desktop);
     }
     internal static bool IsDesktopClass(string value) => value is "Progman" or "WorkerW" or "SHELLDLL_DefView";

@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<Application xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Lateraroot.App" ShutdownMode="OnExplicitShutdown">
+<Application xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Lateraroot" x:Class="Lateraroot.App" ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
         <FontFamily x:Key="MainFont">pack://application:,,,/Lateraroot;component/Assets/Fonts/#Zen Kaku Gothic New</FontFamily>
         <SolidColorBrush x:Key="Ink" Color="#171717"/>
@@ -34,6 +34,69 @@
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <local:StateLayerConverter x:Key="StateLayer"/>
+        <Geometry x:Key="ArrowOut">M3,17 L17,3 M3,3 H17 V17</Geometry>
+        <Geometry x:Key="ArrowIn">M17,3 L3,17 M3,3 V17 H17</Geometry>
+        <Geometry x:Key="CloseIcon">M4,4 L16,16 M16,4 L4,16</Geometry>
+        <Geometry x:Key="MinusIcon">M3,10 H17</Geometry>
+        <Geometry x:Key="GripIcon">M4,6 H7 M12,6 H15 M4,12 H7 M12,12 H15</Geometry>
+        <Style x:Key="SquareButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Border BorderBrush="#80FFFFFF" BorderThickness="0,0,1,1" IsHitTestVisible="False"/>
+                            <Border x:Name="HoverInk" Background="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource StateLayer}}" Opacity="0" IsHitTestVisible="False"/>
+                            <ContentPresenter/>
+                            <Border x:Name="HoverLine" BorderBrush="{TemplateBinding Foreground}" BorderThickness="1" Opacity="0" IsHitTestVisible="False"/>
+                            <Border x:Name="FocusRing" BorderBrush="Transparent" BorderThickness="2" IsHitTestVisible="False"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="local:WidgetMotion.Enabled" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <MultiTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="HoverInk" Storyboard.TargetProperty="Opacity" To="0.065" Duration="0:0:0.18"/>
+                                            <DoubleAnimation Storyboard.TargetName="HoverLine" Storyboard.TargetProperty="Opacity" To="0.18" Duration="0:0:0.18"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </MultiTrigger.EnterActions>
+                                <MultiTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="HoverInk" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.12"/>
+                                            <DoubleAnimation Storyboard.TargetName="HoverLine" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.12"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </MultiTrigger.ExitActions>
+                            </MultiTrigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="local:WidgetMotion.Enabled" Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="HoverInk" Property="Opacity" Value="0.065"/>
+                                <Setter TargetName="HoverLine" Property="Opacity" Value="0.18"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="FocusRing" Property="BorderBrush" Value="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="FocusRing" Property="BorderBrush" Value="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

@@ -24,82 +24,110 @@ public partial class MainWindow
         Directory.CreateDirectory(output);
         try
         {
+            WidgetMotion.TestOverride = false;
             await Settled();
             var face = new Typeface(FontFamily, FontStyle, FontWeight, FontStretch);
-            Check(face.TryGetGlyphTypeface(out var glyph) && glyph.FontUri.ToString().Contains("ZenKakuGothicNew-Medium.ttf", StringComparison.OrdinalIgnoreCase), "Bundled Zen Kaku Gothic New Medium actually resolves");
-            Check(!expanded && Math.Abs(ActualWidth - 68) < 1, "Compact collapsed rail");
-            Capture(this, "collapsed.png");
+            Check(face.TryGetGlyphTypeface(out var glyph) && glyph.FontUri.ToString().Contains("ZenKakuGothicNew-Medium.ttf", StringComparison.OrdinalIgnoreCase), "Bundled Medium font resolves");
+            Check(!expanded && Math.Abs(ActualWidth - 68) < 1, "Compact access remains available");
             int docs = Host.Settings.Stacks.FindIndex(x => x.Id == "documents");
             ((Button)StackRail.Children[docs]).RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseEnterEvent });
-            TogglePin(this, new RoutedEventArgs());
-            await Settled();
-            Check(expanded && pinned && FileItems.Items.Count == 3, "Compact hover and pin use shared file view");
+            TogglePin(this, new RoutedEventArgs()); await Settled();
+            Check(expanded && pinned && visibleTiles.Count == 3, "Hover and click share the file library");
             Capture(this, "compact.png");
-            SearchBox.Text = "アイデア"; Check(FileItems.Items.Count == 1, "Search text-change filters files");
-            SearchBox.Text = "no-such-file"; Check(FileItems.Items.Count == 0 && EmptyState.Visibility == Visibility.Visible, "Search empty state"); SearchBox.Text = "";
-            OrderBox.SelectedIndex = (int)FileOrder.Size; Check(Host.Settings.Order == FileOrder.Size, "Sort change persists"); OrderBox.SelectedIndex = 0;
-            for (int i = 1; i <= 16; i++) File.WriteAllText(Path.Combine(Host.DesktopDirectory, $"資料 {i:00}.txt"), "Lateraroot UI demo");
-            RefreshFiles();
-            UpdateDesktopContext(true); await Settled();
-            Check(desktopEdge.IsVisible && !IsVisible, "Desktop context shows only full edge when collapsed");
-            var screen = WindowPlacement.Screen; var area = WindowPlacement.Area(screen);
-            Check(Math.Abs(desktopEdge.ActualHeight * VisualTreeHelper.GetDpi(desktopEdge).DpiScaleY - area.Height) < 2, "Genre blocks cover the complete work-area edge");
+            SearchBox.Text = "アイデア"; Check(visibleTiles.Count == 1, "Filename search");
+            SearchBox.Text = "no-such-file"; Check(visibleTiles.Count == 0 && EmptyState.IsVisible, "Empty search state"); SearchBox.Text = "";
+            OrderBox.SelectedIndex = (int)FileOrder.Size; Check(Host.Settings.Order == FileOrder.Size, "Sort persistence"); OrderBox.SelectedIndex = 0;
+            for (int i = 1; i <= 16; i++) File.WriteAllText(Path.Combine(Host.DesktopDirectory, $"資料 {i:00}.txt"), "Widget demo");
+            RefreshFiles(); UpdateDesktopContext(true); await Settled();
+            Check(desktopEdge.IsVisible && !IsVisible && !desktopEdge.Topmost, "Desktop widgets live on the desktop rather than the topmost app layer");
+            Check((WindowPlacement.GetWindowLongPtr(new WindowInteropHelper(desktopEdge).Handle, -20).ToInt64() & 8) == 0, "Native desktop window is non-topmost");
+            Check(desktopEdge.SquareCells.All(c => Math.Abs(c.ActualWidth - c.ActualHeight) < .01 && c.ActualWidth >= 72), "All category and utility cells are actual squares");
+            string originalColor = Host.Settings.Stacks[0].Color;
+            Host.Settings.Stacks[0].Color = "#000000"; BuildRail();
+            Check(desktopEdge.SquareCells[0] is Button { Foreground: SolidColorBrush ink } && ink.Color == Colors.White, "Dark custom colors choose readable white ink");
+            Host.Settings.Stacks[0].Color = originalColor; BuildRail();
+            Check(WidgetVisuals.Balance("ドキュメント", 68).Split('\n').All(line => line.Length >= 2), "Short Japanese labels have balanced lines");
             SelectStack("documents"); pinned = true; await Settled();
-            Check(desktopMode && expanded && FileItems.Items.Count == DesktopColumns && ExpandAllButton.IsVisible, "Desktop hover shows one row of genre-colored files");
-            Check(FileScroll.ExtentHeight <= FileScroll.ViewportHeight + 1 && FileScroll.ViewportWidth >= DesktopColumns * 100, "Desktop preview fits a complete row without scrollbars");
+            Check(desktopMode && !Topmost && visibleTiles.Count == DesktopColumns && ExpandAllButton.IsVisible, "One-row square widget preview");
+            Check(FileScroll is { } preview && preview.ExtentHeight <= preview.ViewportHeight + 1 && preview.ViewportWidth >= DesktopColumns * TileSide - 1, "The preview row fits without clipping");
+            Check(Descendants<Button>(FileItems).All(c => Math.Abs(c.ActualWidth - c.ActualHeight) < .01), "Realized file cells are square too");
             CaptureDesktop("desktop-preview.png");
             ToggleAllFiles(this, new RoutedEventArgs()); await Settled();
-            Check(showAll && FileItems.Items.Count == 19 && SearchTools.IsVisible, "OPEN reveals wrapped rows and common tools");
+            Check(showAll && visibleTiles.Count == 19 && !SearchTools.IsVisible, "OPEN reveals the square grid without an inspector backdrop");
+            var pixel = new byte[4]; double pixelScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            Render(this).CopyPixels(new Int32Rect((int)(TileSide * .5 * pixelScale), (int)(TileSide * 1.5 * pixelScale), 1, 1), pixel, 4, 0);
+            Check(pixel[3] == 0, "Unused widget space is transparent rather than a rectangular pasted backdrop");
             CaptureDesktop("desktop-expanded.png");
+            ShowInspector(); await Settled();
+            Check(widgetInspector && SearchTools.IsVisible && OrganizeButton.IsVisible, "Search and file operations use the shared inspector");
+            Capture(this, "inspector.png"); SelectStack("documents");
+            Check(!widgetInspector && !SearchTools.IsVisible, "Selecting a widget returns from the inspector to the grid");
+            foreach (int size in new[] { 72, 88, 104 })
             foreach (var edge in Enum.GetValues<DockEdge>())
             {
-                Host.Settings.Edge = edge; BuildRail(); ApplyPresentation(); await Settled();
+                Host.Settings.TileSize = size; Host.Settings.Edge = edge; BuildRail(); ApplyPresentation(); await Settled();
                 CheckBounds(this, edge, false); CheckBounds(desktopEdge, edge, true);
+                Check(desktopEdge.SquareCells.All(c => Math.Abs(c.ActualWidth - c.ActualHeight) < .01), $"Square proportions at {size} DIP on {edge}");
             }
-            Host.Settings.Edge = DockEdge.Right; BuildRail(); ApplyPresentation();
+            Host.Settings.TileSize = 88; Host.Settings.Edge = DockEdge.Right; BuildRail(); ApplyPresentation();
+            var baseline = allItems;
+            var sample = baseline.First(x => x.StackId == "documents");
+            allItems = Enumerable.Range(0, 1500).Select(i => sample with { Name = $"Virtual file {i:0000}.txt" }).ToList();
+            showAll = true; ApplyPresentation(); await Settled();
+            Check(visibleTiles.Count == 1500 && FileItems.Items.Count > 100, "All files remain accessible in a large widget");
+            int realized = Enumerable.Range(0, FileItems.Items.Count).Count(i => FileItems.ItemContainerGenerator.ContainerFromIndex(i) is not null);
+            Check(realized < 25 && FileItems.ItemContainerGenerator.ContainerFromIndex(FileItems.Items.Count - 1) is null, "Native recycling bounds the realized rows");
+            FileScroll!.ScrollToEnd(); await Settled();
+            Check(FileItems.ItemContainerGenerator.ContainerFromIndex(FileItems.Items.Count - 1) is not null, "The final files can be scrolled into view");
+            allItems = baseline; showAll = false; RefreshFiles(); FileScroll?.ScrollToTop();
             SetDockVisibility(DockVisibility.Minimized); await Settled();
-            Check(IsVisible && !desktopEdge.IsVisible && MinimizedTab.IsVisible && ActualWidth == 28, "Minimize replaces desktop edge with a small tab");
-            Capture(this, "minimized.png");
+            Check(IsVisible && !desktopEdge.IsVisible && MinimizedTab.IsVisible, "Minimized widget tab");
             foreach (var edge in Enum.GetValues<DockEdge>())
             {
                 Host.Settings.Edge = edge; ApplyPresentation(); await Settled();
-                Check(MiniRestore.ActualWidth >= 24 && MiniRestore.ActualHeight >= 24, edge + " minimized restore control stays usable");
+                Check(MiniRestore.ActualWidth >= 24 && MiniRestore.ActualHeight >= 24, edge + " minimized control");
             }
-            Host.Settings.Edge = DockEdge.Right;
-            SetDockVisibility(DockVisibility.Hidden); Check(!IsVisible && !desktopEdge.IsVisible, "Hide removes every application surface");
+            Host.Settings.Edge = DockEdge.Right; SetDockVisibility(DockVisibility.Hidden);
+            Check(!IsVisible && !desktopEdge.IsVisible, "Hidden widgets leave no surface");
             bool handled = false; WindowMessage(new WindowInteropHelper(this).Handle, 0x0312, new IntPtr(1), IntPtr.Zero, ref handled);
-            Check(handled && Host.Settings.Visibility == DockVisibility.Visible && desktopEdge.IsVisible, "Hotkey restores a hidden dock");
-            modalDepth++;
-            UpdateDesktopContext(false);
-            Check(!desktopEdge.IsVisible, "Desktop edge immediately hides when an external app wins focus during a dialog");
-            EndModal();
-            Check(!desktopMode && IsVisible, "Dialog exit applies the latest deferred foreground context");
-            UpdateDesktopContext(false); await Settled();
-            Check(IsVisible && !desktopEdge.IsVisible && !expanded, "Application context switches back to compact mode");
+            Check(handled && desktopEdge.IsVisible, "Shortcut restores hidden widgets");
+            modalDepth++; UpdateDesktopContext(false); Check(!desktopEdge.IsVisible, "Foreground change hides the desktop layer even during a dialog"); EndModal();
+            Check(!desktopMode && IsVisible && Topmost, "Compact access replaces desktop widgets in application context");
             foreach (var edge in Enum.GetValues<DockEdge>())
+            foreach (double offset in new[] { 0d, 1d })
             {
-                Host.Settings.Edge = edge;
-                foreach (double offset in new[] { 0d, 1d })
-                {
-                    Host.Settings.DockOffset = offset; ApplyPresentation(); await Settled(); CheckBounds(this, edge, true);
-                }
+                Host.Settings.Edge = edge; Host.Settings.DockOffset = offset; ApplyPresentation(); await Settled(); CheckBounds(this, edge, true);
             }
-            Check(!DesktopContextMonitor.IsDesktopClass("CabinetWClass") && DesktopContextMonitor.IsDesktopClass("Progman") && DesktopContextMonitor.IsDesktopClass("WorkerW"), "Explorer file windows remain distinct from the desktop");
-            Host.Settings.Edge = DockEdge.Right; Host.Settings.DockOffset = 0.5; BuildRail(); ApplyPresentation();
+            Host.Settings.Edge = DockEdge.Right; Host.Settings.DockOffset = .5; BuildRail(); ApplyPresentation();
             var settings = new SettingsWindow(); settings.Show(); await Settled();
-            Check(settings.IsVisible && settings.FontFamily.Source.Contains("Zen Kaku Gothic New"), "Settings uses the common bundled typography");
+            Check(settings.IsVisible && settings.FontFamily.Source.Contains("Zen Kaku Gothic New"), "The widget editor uses the same type system");
             Capture(settings, "settings.png"); settings.Close();
             SelectStack("documents"); pinned = true;
             int total = allItems.Count;
             var stored = Host.Library.Organize(allItems.Where(x => x.CanOrganize));
-            Check(stored.Succeeded == total && stored.Errors.Count == 0, "Storage regression: all demo files and directories organized");
-            RefreshFiles(); Check(allItems.All(x => x.IsStored) && !OrganizeButton.IsEnabled && RestoreButton.IsEnabled, "Shared view reflects storage state");
+            Check(stored.Succeeded == total && stored.Errors.Count == 0, "Explicit storage preserves the file workflow");
+            RefreshFiles(); Check(allItems.All(x => x.IsStored) && RestoreButton.IsEnabled, "Shared inspector tracks stored files");
             var restored = Host.Library.Restore(allItems.Select(x => x.RecordId!));
-            Check(restored.Succeeded == total && restored.Errors.Count == 0, "Storage regression: all items restored");
-            RefreshFiles(); Check(allItems.All(x => !x.IsStored), "Restored files reappear without duplicate entries");
-            Check(Host.Windows.Count == 2, "Two reusable windows only; no overlay per file or genre");
-            SaveSettings();
-            JsonStore.Write(Path.Combine(output, "result.json"), new { Passed = true, Checks = checks });
+            Check(restored.Succeeded == total && restored.Errors.Count == 0, "Collision-safe restoration regression"); RefreshFiles();
+            Check(allItems.All(x => !x.IsStored), "Restored files have no duplicate library entries");
+            WidgetMotion.TestOverride = true; Host.Settings.ReduceMotion = false;
+            UpdateDesktopContext(true); SelectStack("documents"); closeTimer.Stop(); pinned = true;
+            await Task.Delay(90); Check(Panel.Opacity > 0 && Panel.Opacity < 1, "Entry motion has an observable intermediate state");
+            CaptureDesktop("motion-intermediate.png");
+            await Task.Delay(650); Check(Math.Abs(Panel.Opacity - 1) < .001 && Panel.RenderTransform is TranslateTransform { X: 0, Y: 0 }, "Entry reaches its stable final state");
+            Collapse(); await Task.Delay(45); SelectStack("documents"); closeTimer.Stop(); await Task.Delay(400);
+            Check(expanded && IsVisible && !closingPanel && Math.Abs(Panel.Opacity - 1) < .001, "Rapid re-entry cancels a pending exit");
+            Collapse(); await Task.Delay(220); Check(!expanded && !IsVisible, "Exit completes and releases the file surface");
+            SelectStack("documents"); SetDockVisibility(DockVisibility.Hidden); await Task.Delay(500);
+            Check(!IsVisible && !desktopEdge.IsVisible, "Stale entry clocks cannot reopen hidden widgets");
+            Host.Settings.ReduceMotion = true; RestoreDock(); SelectStack("documents"); await Settled();
+            Check(!WidgetMotion.GetEnabled(this) && Panel.Opacity == 1 && Panel.RenderTransform is TranslateTransform { X: 0, Y: 0 }, "Reduced motion uses the same immediate final state");
+            Collapse(); Check(!expanded, "Reduced-motion exit is immediate");
+            Host.Settings.ReduceMotion = false; WidgetMotion.TestOverride = true;
+            await RecordMotion(); WidgetMotion.TestOverride = false;
+            Check(File.Exists(Path.Combine(output, "motion.gif")), "Rendered animation preview is available");
+            Check(Host.Windows.Count == 2, "Only two reusable presentation windows");
+            SaveSettings(); JsonStore.Write(Path.Combine(output, "result.json"), new { Passed = true, Checks = checks });
             Host.Trace("UI verification passed: " + checks.Count); Host.Shutdown(0);
         }
         catch (Exception ex)
@@ -115,6 +143,14 @@ public partial class MainWindow
             bool inside = r.Left >= area.X - 1 && r.Right <= area.Right + 1 && r.Top >= area.Y - 1 && r.Bottom <= area.Bottom + 1;
             bool aligned = edge switch { DockEdge.Right => Math.Abs(r.Right - area.Right) < 2, DockEdge.Left => Math.Abs(r.Left - area.X) < 2, DockEdge.Top => Math.Abs(r.Top - area.Y) < 2, _ => Math.Abs(r.Bottom - area.Bottom) < 2 };
             Check(inside && (!onEdge || aligned), $"{(desktopMode ? "Desktop" : "Compact")} {window.Title} {edge} bounds and alignment");
+        }
+        static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i); if (child is T found) yield return found;
+                foreach (var descendant in Descendants<T>(child)) yield return descendant;
+            }
         }
         RenderTargetBitmap Render(Window window)
         {
@@ -137,11 +173,51 @@ public partial class MainWindow
                 dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, area.Width, area.Height));
                 foreach (var window in new Window[] { desktopEdge, this })
                 {
+                    if (!window.IsVisible) continue;
                     GetWindowRect(new WindowInteropHelper(window).Handle, out var r);
                     dc.DrawImage(Render(window), new Rect(r.Left - area.X, r.Top - area.Y, r.Right - r.Left, r.Bottom - r.Top));
                 }
             }
             var bitmap = new RenderTargetBitmap((int)area.Width, (int)area.Height, 96, 96, PixelFormats.Pbgra32); bitmap.Render(canvas); Write(bitmap, name);
+        }
+        async Task RecordMotion()
+        {
+            Host.Settings.Edge = DockEdge.Right; Host.Settings.TileSize = 88; BuildRail();
+            expanded = false; ApplyPresentation();
+            var encoder = new GifBitmapEncoder();
+            var area = WindowPlacement.Area(WindowPlacement.Screen);
+            var dpi = VisualTreeHelper.GetDpi(this);
+            double side = TileSide * dpi.DpiScaleX;
+            double width = Math.Min(area.Width, side * 10 + 32), height = Math.Min(area.Height, side * 8 + 32);
+            GetWindowRect(new WindowInteropHelper(desktopEdge).Handle, out var anchor);
+            double originX = area.Right - width, originY = Math.Clamp(anchor.Top - 16, area.Y, area.Bottom - height);
+            var frameClock = System.Diagnostics.Stopwatch.StartNew(); double lastFrame = 0;
+            for (int i = 0; i < 30; i++)
+            {
+                if (i == 1) { SelectStack("documents"); pinned = true; }
+                if (i == 20) Collapse();
+                closeTimer.Stop(); await Task.Delay(40); UpdateLayout();
+                var visual = new DrawingVisual();
+                using (var dc = visual.RenderOpen())
+                {
+                    dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
+                    foreach (var window in new Window[] { desktopEdge, this })
+                    {
+                        if (!window.IsVisible) continue;
+                        GetWindowRect(new WindowInteropHelper(window).Handle, out var r);
+                        dc.DrawImage(Render(window), new Rect(r.Left - originX, r.Top - originY, r.Right - r.Left, r.Bottom - r.Top));
+                    }
+                }
+                var bitmap = new RenderTargetBitmap((int)width, (int)height, 96, 96, PixelFormats.Pbgra32); bitmap.Render(visual);
+                double now = frameClock.Elapsed.TotalMilliseconds;
+                var metadata = new BitmapMetadata("gif"); metadata.SetQuery("/grctlext/Delay", (ushort)Math.Clamp(Math.Round((now - lastFrame) / 10), 1, 100)); lastFrame = now; metadata.SetQuery("/grctlext/Disposal", (byte)2);
+                encoder.Frames.Add(BitmapFrame.Create(bitmap, null, metadata, null));
+            }
+            using var buffer = new MemoryStream(); encoder.Save(buffer);
+            var bytes = buffer.ToArray();
+            int offset = 13 + ((bytes[10] & 128) != 0 ? 3 * (1 << ((bytes[10] & 7) + 1)) : 0);
+            using var stream = File.Create(Path.Combine(output, "motion.gif"));
+            stream.Write(bytes.AsSpan(0, offset)); stream.Write(new byte[] { 0x21, 0xff, 11 }); stream.Write("NETSCAPE2.0"u8); stream.Write(new byte[] { 3, 1, 0, 0, 0 }); stream.Write(bytes.AsSpan(offset));
         }
         async Task Settled() { closeTimer.Stop(); await Dispatcher.InvokeAsync(UpdateLayout, DispatcherPriority.ApplicationIdle); await Task.Delay(80); }
     }

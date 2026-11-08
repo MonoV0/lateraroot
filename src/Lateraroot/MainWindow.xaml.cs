@@ -25,7 +25,11 @@ public partial class MainWindow : Window
     private readonly Forms.NotifyIcon tray;
     private IReadOnlyList<DesktopItem> allItems = [];
     private string selectedStack;
-    private bool expanded, pinned, ready, busy, desktopMode, showAll, dragging, libraryDirty;
+    private bool expanded, pinned, ready, busy, desktopMode, showAll, dragging, libraryDirty, widgetInspector, closingPanel, animateTiles;
+    private int motionGeneration;
+    private IReadOnlyList<FileTile> visibleTiles = [];
+    private int tileColumns = 1;
+    private ScrollViewer? FileScroll { get { FileItems.ApplyTemplate(); return FileItems.Template.FindName("RowsScroll", FileItems) as ScrollViewer; } }
     private bool? deferredDesktop;
     private int modalDepth;
     private HwndSource? source;
@@ -58,12 +62,13 @@ public partial class MainWindow : Window
             source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
             source?.AddHook(WindowMessage);
             if (!RegisterHotKey(new WindowInteropHelper(this).Handle, 1, 0x4003, 0x20)) StatusText.Text = "ホットキーを使用できません。通知領域から開けます。";
-            desktopEdge = new DesktopEdgeWindow(SelectStack, OpenSettings, () => SetDockVisibility(DockVisibility.Minimized), () => SetDockVisibility(DockVisibility.Hidden), () => closeTimer.Stop(), () => WindowLeave(this, null!));
+            desktopEdge = new DesktopEdgeWindow(SelectStack, OpenSettings, ShowInspector, () => SetDockVisibility(DockVisibility.Minimized), () => SetDockVisibility(DockVisibility.Hidden), () => closeTimer.Stop(), () => WindowLeave(this, null!), DockDragStarted, DockDragDelta, DockDragCompleted);
             RefreshFiles(); RestartWatchers();
             if (!Host.IsVerifying)
             {
                 contextMonitor = new DesktopContextMonitor(value => Dispatcher.BeginInvoke(() => UpdateDesktopContext(value)));
                 desktopMode = contextMonitor.IsDesktop;
+                WindowPlacement.DesktopAnchor = contextMonitor.DesktopHandle;
             }
             ApplyPresentation();
         };
@@ -82,6 +87,44 @@ public partial class MainWindow : Window
     }
 
     private void DisplayChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(() => { desktopEdge.Place(); ApplyPresentation(); });
+    private void ApplyPresentation()
+    {
+        if (!ready) return;
+        CancelTransition();
+        WidgetMotion.SetEnabled(this, WidgetMotion.Allowed);
+        Topmost = !desktopMode;
+        var visibility = Host.Settings.Visibility;
+        if (visibility == DockVisibility.Hidden) { FileItems.ItemsSource = null; visibleTiles = []; Panel.Visibility = Visibility.Collapsed; desktopEdge.Hide(); Hide(); return; }
+        bool minimized = visibility == DockVisibility.Minimized;
+        bool desktop = desktopMode && !minimized;
+        bool widget = desktop && !widgetInspector;
+        Rail.Visibility = desktop || minimized ? Visibility.Collapsed : Visibility.Visible;
+        MinimizedTab.Visibility = minimized ? Visibility.Visible : Visibility.Collapsed;
+        Panel.Visibility = expanded && !minimized ? Visibility.Visible : Visibility.Collapsed;
+        if (!expanded || minimized) { FileItems.ItemsSource = null; visibleTiles = []; }
+        ExpandAllButton.Visibility = widget ? Visibility.Visible : Visibility.Collapsed;
+        WidgetToggleLabel.Text = showAll ? "CLOSE" : "OPEN";
+        WidgetToggleArrow.Data = (Geometry)FindResource(showAll ? "ArrowOut" : "ArrowIn");
+        System.Windows.Automation.AutomationProperties.SetItemStatus(ExpandAllButton, showAll ? "展開中" : "1行表示");
+        PanelHeader.Visibility = SearchTools.Visibility = Footer.Visibility = StatusText.Visibility = widget ? Visibility.Collapsed : Visibility.Visible;
+        Panel.Margin = new Thickness(widget ? 0 : 24);
+        Frame.Background = widget ? Brushes.Transparent : Brushes.White;
+        Frame.BorderThickness = new Thickness(widget ? 0 : 1);
+        bool controlRight = widget && Host.Settings.Edge == DockEdge.Left;
+        WidgetControlColumn.Width = widget && !controlRight ? new GridLength(TileSide) : new GridLength(widget ? 1 : 0, GridUnitType.Star);
+        WidgetContentColumn.Width = widget && controlRight ? new GridLength(TileSide) : new GridLength(1, GridUnitType.Star);
+        foreach (UIElement child in Panel.Children) Grid.SetColumn(child, child == ExpandAllButton ? controlRight ? 1 : 0 : controlRight ? 0 : 1);
+        ExpandAllButton.Width = ExpandAllButton.Height = TileSide;
+        PlaceDock();
+        if (expanded) RenderFiles();
+        if (desktop)
+        {
+            if (!expanded) Hide(); else if (!IsVisible) Show();
+            if (!desktopEdge.IsVisible) { desktopEdge.Show(); if (desktopEdge.Content is UIElement content) WidgetMotion.Reveal(content, Host.Settings.Edge); }
+            desktopEdge.Place();
+        }
+        else { desktopEdge.Hide(); if (!IsVisible) Show(); }
+    }
     private void RestartWatchers()
     {
         foreach (var watcher in watchers) watcher.Dispose(); watchers.Clear();
@@ -117,13 +160,13 @@ public partial class MainWindow : Window
     {
         var counts = allItems.GroupBy(x => x.StackId).ToDictionary(x => x.Key, x => x.Count());
         StackRail.Children.Clear();
+        int index = 0;
         foreach (var stack in Host.Settings.Stacks)
         {
-            var label = new StackPanel();
-            label.Children.Add(new TextBlock { Text = stack.Symbol, FontSize = 22, HorizontalAlignment = HorizontalAlignment.Center });
-            label.Children.Add(new TextBlock { Text = counts.GetValueOrDefault(stack.Id).ToString(), FontSize = 9, HorizontalAlignment = HorizontalAlignment.Center });
-            var button = new Button { Content = label, Width = 66, Height = 54, Padding = new Thickness(3), BorderThickness = new Thickness(0), Background = DesktopEdgeWindow.ColorBrush(stack.Color, 0.65), ToolTip = stack.Name };
-            System.Windows.Automation.AutomationProperties.SetName(button, stack.Name + " ジャンル");
+            var label = DesktopEdgeWindow.GenreLabel(stack, index++, counts.GetValueOrDefault(stack.Id), true);
+            var button = new Button { Content = label, Width = 66, Height = 66, Padding = new Thickness(0), BorderThickness = new Thickness(0), Background = DesktopEdgeWindow.ColorBrush(stack.Color, .55), ToolTip = stack.Name, Style = (Style)FindResource("SquareButton") };
+            button.Foreground = WidgetVisuals.Ink(button.Background);
+            System.Windows.Automation.AutomationProperties.SetName(button, stack.Name + " ウィジェット");
             button.MouseEnter += (_, _) => { if (!dragging) SelectStack(stack.Id); };
             button.Click += (_, _) => { SelectStack(stack.Id); Activate(); };
             StackRail.Children.Add(button);
@@ -132,83 +175,110 @@ public partial class MainWindow : Window
     }
     private void SelectStack(string id)
     {
-        if (Host.Settings.Visibility != DockVisibility.Visible || dragging) return;
-        bool changed = selectedStack != id;
-        if (changed) { selectedStack = id; showAll = false; SearchBox.Text = ""; FileScroll.ScrollToTop(); }
-        if (!expanded) Expand(); else if (changed) { ApplyPresentation(); }
+        if (Host.Settings.Visibility != DockVisibility.Visible || dragging || busy) return;
+        bool changed = selectedStack != id || widgetInspector;
+        if (closingPanel) { motionGeneration++; closingPanel = false; WidgetMotion.Reveal(Panel, Host.Settings.Edge, resume: true); }
+        if (changed) { selectedStack = id; showAll = widgetInspector = false; SearchBox.Text = ""; FileScroll?.ScrollToTop(); }
+        if (!expanded) Expand(); else if (changed) PresentWithMotion();
         closeTimer.Stop();
     }
-    private int DesktopColumns => Math.Clamp((int)((WindowPlacement.Screen.WorkingArea.Width / VisualTreeHelper.GetDpi(this).DpiScaleX - 116) / 100), 1, 8);
+    private double TileSide => desktopMode ? desktopEdge.TileSide : Host.Settings.TileSize;
+    private int DesktopColumns
+    {
+        get
+        {
+            var area = WindowPlacement.Area(WindowPlacement.Screen);
+            double scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            var root = DockLayout.DesktopRail(area, Host.Settings.Edge, scale, Host.Settings.Stacks.Count, Host.Settings.TileSize, Host.Settings.DockOffset);
+            return Math.Clamp((int)((area.Width - (DockLayout.IsVertical(Host.Settings.Edge) ? root.Width : 0)) / scale / TileSide) - 1, 1, 8);
+        }
+    }
     private void RenderFiles()
     {
         if (!ready) return;
         var stack = Host.Settings.Stacks.First(x => x.Id == selectedStack);
         var items = allItems.Where(x => x.StackId == selectedStack).ToList();
-        var filtered = items.Where(x => x.Name.Contains(SearchBox.Text, StringComparison.CurrentCultureIgnoreCase));
-        if (desktopMode && !showAll) filtered = filtered.Take(DesktopColumns);
-        var background = DesktopEdgeWindow.ColorBrush(stack.Color, desktopMode ? 0.5 : 0.86);
-        var tiles = filtered.Select(item => new FileTile(item, ShellIcons.Get(item.Path, item.IsDirectory), background)).ToList();
-        FileItems.ItemsSource = tiles;
-        StackTitle.Text = stack.Name; StackSubtitle.Text = $"{items.Count} 個 / {items.Count(x => x.IsStored)} 個を収納済み";
+        bool widget = desktopMode && !widgetInspector;
+        int filteredCount = items.Count(x => x.Name.Contains(SearchBox.Text, StringComparison.CurrentCultureIgnoreCase));
+        tileColumns = widget ? Math.Min(DesktopColumns, Math.Max(1, filteredCount)) : Math.Max(1, (int)((Width - (desktopMode ? 0 : DockLayout.IsVertical(Host.Settings.Edge) ? 68 : 0) - 50) / TileSide));
+        IEnumerable<DesktopItem> filtered = items.Where(x => x.Name.Contains(SearchBox.Text, StringComparison.CurrentCultureIgnoreCase));
+        if (widget && !showAll) filtered = filtered.Take(tileColumns);
+        var color = DesktopEdgeWindow.ColorBrush(stack.Color, widget ? .48 : .9);
+        visibleTiles = filtered.Select((item, i) => new FileTile(item, color, TileSide, i)).ToList();
+        FileItems.ItemsSource = visibleTiles.Chunk(tileColumns).ToList();
+        StackTitle.Text = stack.Name; StackSubtitle.Text = $"{items.Count} 個のファイル / {items.Count(x => x.IsStored)} 個を収納済み";
+        WidgetToggleCount.Text = items.Count.ToString("00");
         SearchHint.Visibility = SearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
-        EmptyState.Visibility = tiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        EmptyState.Visibility = visibleTiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyTitle.Text = SearchBox.Text.Length > 0 ? "一致するファイルはありません" : "ファイルはありません";
+        EmptyDescription.Visibility = widget ? Visibility.Collapsed : Visibility.Visible;
         EmptyDescription.Text = SearchBox.Text.Length > 0 ? "別のファイル名で検索してください。" : "分類ルールは設定から変更できます。";
         RestoreButton.IsEnabled = items.Any(x => x.IsStored); OrganizeButton.IsEnabled = allItems.Any(x => x.CanOrganize);
-        Frame.Background = desktopMode ? DesktopEdgeWindow.ColorBrush(stack.Color, 0.68) : Brushes.White;
+        ExpandAllButton.Background = DesktopEdgeWindow.ColorBrush(stack.Color, .4);
+        ExpandAllButton.Foreground = WidgetToggleArrow.Stroke = WidgetVisuals.Ink(ExpandAllButton.Background);
     }
     private void UpdateDesktopContext(bool value)
     {
         if (modalDepth > 0 || dragging) { deferredDesktop = value; if (!value) desktopEdge.Hide(); return; }
-        if (desktopMode == value) return;
-        desktopMode = value; expanded = pinned = showAll = false; PinButton.Content = "○";
+        var previousAnchor = WindowPlacement.DesktopAnchor;
+        if (value && contextMonitor is not null) WindowPlacement.DesktopAnchor = contextMonitor.DesktopHandle;
+        if (desktopMode == value)
+        {
+            if (value && previousAnchor != WindowPlacement.DesktopAnchor) { desktopEdge.Place(); if (expanded) PlaceDock(); }
+            return;
+        }
+        desktopMode = value; expanded = pinned = showAll = widgetInspector = false; PinButton.Content = "固定";
         ApplyPresentation();
     }
     private void ApplyDeferredContext()
     {
         if (deferredDesktop is { } value && modalDepth == 0 && !busy && !dragging) { deferredDesktop = null; UpdateDesktopContext(value); }
     }
-    private void ApplyPresentation()
-    {
-        if (!ready) return;
-        var visibility = Host.Settings.Visibility;
-        if (visibility == DockVisibility.Hidden) { desktopEdge.Hide(); Hide(); return; }
-        bool minimized = visibility == DockVisibility.Minimized;
-        bool desktop = desktopMode && !minimized;
-        Rail.Visibility = desktop || minimized ? Visibility.Collapsed : Visibility.Visible;
-        MinimizedTab.Visibility = minimized ? Visibility.Visible : Visibility.Collapsed;
-        Panel.Visibility = expanded && !minimized ? Visibility.Visible : Visibility.Collapsed;
-        if (!expanded || minimized) FileItems.ItemsSource = null;
-        ExpandAllButton.Visibility = desktop ? Visibility.Visible : Visibility.Collapsed;
-        ExpandAllButton.Content = showAll ? "↗ CLOSE" : "↙ OPEN";
-        bool tools = !desktop || showAll;
-        FileScroll.VerticalScrollBarVisibility = desktop && !showAll ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
-        SearchTools.Visibility = Footer.Visibility = StatusText.Visibility = tools ? Visibility.Visible : Visibility.Collapsed;
-        StackSubtitle.Visibility = tools ? Visibility.Visible : Visibility.Collapsed;
-        Panel.Margin = new Thickness(desktop ? 12 : 18);
-        PanelHeader.Margin = new Thickness(0, 0, 0, desktop ? 8 : 16);
-        StackTitle.FontSize = desktop ? 14 : 20;
-        if (expanded) RenderFiles();
-        if (desktop)
-        {
-            if (!expanded) Hide(); else { PlaceDock(); if (!IsVisible) Show(); }
-            if (!desktopEdge.IsVisible) desktopEdge.Show();
-            desktopEdge.Place();
-        }
-        else { desktopEdge.Hide(); PlaceDock(); if (!IsVisible) Show(); }
-    }
     private void Expand()
     {
         closeTimer.Stop();
         if (expanded) return;
         if (libraryDirty) RefreshFiles();
-        expanded = true; showAll = false;
-        ApplyPresentation();
+        expanded = true; showAll = widgetInspector = false;
+        PresentWithMotion();
+    }
+    private void CancelTransition() { motionGeneration++; closingPanel = false; WidgetMotion.Cancel(Panel); }
+    private void PresentWithMotion()
+    {
+        animateTiles = true; ApplyPresentation(); WidgetMotion.Reveal(Panel, Host.Settings.Edge);
+        Dispatcher.BeginInvoke(() => animateTiles = false, DispatcherPriority.ContextIdle);
+    }
+    private void FileTileLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.DataContext is not FileTile tile) return;
+        WidgetMotion.Cancel(button);
+        if (!animateTiles) return;
+        int column = tile.DisplayIndex % tileColumns;
+        int rank = (Host.Settings.Edge == DockEdge.Right ? tileColumns - 1 - column : column) + tile.DisplayIndex / tileColumns;
+        WidgetMotion.Reveal(button, Host.Settings.Edge, rank);
+    }
+    private void ShowInspector()
+    {
+        if (Host.Settings.Visibility != DockVisibility.Visible) SetDockVisibility(DockVisibility.Visible);
+        expanded = true; widgetInspector = true; showAll = true;
+        PresentWithMotion(); Activate(); SearchBox.Focus();
+    }
+    private void OpenInspectorClick(object sender, RoutedEventArgs e) => ShowInspector();
+    private void RailMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (DockLayout.IsVertical(Host.Settings.Edge)) return;
+        if (e.Delta > 0) RailScroll.LineLeft(); else RailScroll.LineRight(); e.Handled = true;
     }
     private void Collapse()
     {
-        if (modalDepth > 0 || busy) return;
-        expanded = pinned = showAll = false; PinButton.Content = "○"; ApplyPresentation();
+        if (modalDepth > 0 || busy || !expanded || closingPanel) return;
+        pinned = false; PinButton.Content = "固定";
+        int ticket = ++motionGeneration; closingPanel = true;
+        WidgetMotion.Exit(Panel, Host.Settings.Edge, () =>
+        {
+            if (ticket != motionGeneration) return;
+            expanded = showAll = widgetInspector = false; closingPanel = false; ApplyPresentation();
+        });
     }
     private void PlaceDock()
     {
@@ -221,10 +291,10 @@ public partial class MainWindow : Window
         {
             Grid.SetColumn(Panel, 0); PanelColumn.Width = new GridLength(1, GridUnitType.Star); RailColumn.Width = new GridLength(0); FirstRow.Height = new GridLength(1, GridUnitType.Star); SecondRow.Height = new GridLength(0);
             int count = allItems.Count(x => x.StackId == selectedStack && x.Name.Contains(SearchBox.Text, StringComparison.CurrentCultureIgnoreCase));
-            int columns = Math.Min(DesktopColumns, Math.Max(3, Math.Min(count, 8)));
-            double width = Math.Max(344, columns * 100 + 44);
-            double height = showAll ? 228 + Math.Min(6, Math.Max(1, Math.Ceiling(count / (double)Math.Max(1, columns)))) * 96 : 164;
-            WindowPlacement.Place(this, DockLayout.Flyout(area, edge, Host.Settings.Stacks.FindIndex(x => x.Id == selectedStack), Host.Settings.Stacks.Count, scale, width, height), scale);
+            int columns = Math.Min(DesktopColumns, Math.Max(1, count));
+            double width = widgetInspector ? 440 : (columns + 1) * TileSide;
+            double height = widgetInspector ? 560 : (showAll ? Math.Min(6, Math.Max(1, Math.Ceiling(count / (double)columns))) : 1) * TileSide;
+            WindowPlacement.Place(this, DockLayout.Flyout(area, edge, Host.Settings.Stacks.FindIndex(x => x.Id == selectedStack), Host.Settings.Stacks.Count, scale, width, height, Host.Settings.TileSize, Host.Settings.DockOffset), scale);
             return;
         }
         var rect = DockLayout.Compact(area, edge, Host.Settings.DockOffset, scale, expanded, minimized);
@@ -254,14 +324,14 @@ public partial class MainWindow : Window
         MiniFirstRow.Height = vertical ? new GridLength(20) : new GridLength(1, GridUnitType.Star);
         MiniSecondRow.Height = vertical ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         Grid.SetRow(MiniRestore, vertical ? 1 : 0); Grid.SetColumn(MiniRestore, vertical ? 0 : 1);
-        foreach (Button button in StackRail.Children) { button.Width = vertical ? 66 : 54; button.Height = vertical ? 54 : 66; }
+        foreach (Button button in StackRail.Children) { button.Width = button.Height = 66; }
         Frame.Background = Brushes.White;
         WindowPlacement.Place(this, rect, scale);
     }
     private void SetDockVisibility(DockVisibility value)
     {
-        Host.Settings.Visibility = value; expanded = pinned = showAll = false;
-        PinButton.Content = "○";
+        Host.Settings.Visibility = value; expanded = pinned = showAll = widgetInspector = false;
+        PinButton.Content = "固定";
         if (value == DockVisibility.Visible && libraryDirty) RefreshFiles();
         SaveSettings(); ApplyPresentation();
     }
@@ -274,9 +344,10 @@ public partial class MainWindow : Window
     {
         if (!GetCursorPos(out var point)) return;
         var screen = Forms.Screen.FromPoint(new System.Drawing.Point(point.X, point.Y));
-        var snap = DockLayout.Snap(WindowPlacement.Area(screen), point.X, point.Y, WindowPlacement.Scale(this, screen), Host.Settings.Visibility == DockVisibility.Minimized ? 112 : 620);
+        double length = Host.Settings.Visibility == DockVisibility.Minimized ? 112 : desktopMode ? (DockLayout.IsVertical(Host.Settings.Edge) ? desktopEdge.Height : desktopEdge.Width) : 620;
+        var snap = DockLayout.Snap(WindowPlacement.Area(screen), point.X, point.Y, WindowPlacement.Scale(this, screen), length);
         Host.Settings.Edge = snap.Edge; Host.Settings.DockOffset = snap.Offset; Host.Settings.Monitor = screen.DeviceName;
-        PlaceDock();
+        if (desktopMode) desktopEdge.Place(); else PlaceDock();
     }
     private void DockDragCompleted(object sender, DragCompletedEventArgs e) { dragging = false; SaveSettings(); BuildRail(); ApplyDeferredContext(); ApplyPresentation(); }
     private void SaveSettings()
@@ -286,10 +357,16 @@ public partial class MainWindow : Window
     }
     private void WindowEnter(object sender, MouseEventArgs e) => closeTimer.Stop();
     private void WindowLeave(object sender, MouseEventArgs e) { closeTimer.Interval = TimeSpan.FromMilliseconds(Host.Settings.CloseDelayMs); closeTimer.Stop(); closeTimer.Start(); }
-    private void TogglePin(object sender, RoutedEventArgs e) { pinned = !pinned; PinButton.Content = pinned ? "●" : "○"; }
-    private void ToggleAllFiles(object sender, RoutedEventArgs e) { showAll = !showAll; SearchBox.Text = ""; ApplyPresentation(); }
+    private void TogglePin(object sender, RoutedEventArgs e) { pinned = !pinned; PinButton.Content = pinned ? "固定中" : "固定"; }
+    private void ToggleAllFiles(object sender, RoutedEventArgs e) { showAll = !showAll; SearchBox.Text = ""; PresentWithMotion(); }
     private void ClosePanel(object sender, RoutedEventArgs e) => Collapse();
-    private void WindowKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { Collapse(); e.Handled = true; } }
+    private void WindowKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape) { Collapse(); e.Handled = true; }
+        else if (e.Key == Key.PageDown) { FileScroll?.PageDown(); e.Handled = true; }
+        else if (e.Key == Key.PageUp) { FileScroll?.PageUp(); e.Handled = true; }
+        else if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control) { ShowInspector(); e.Handled = true; }
+    }
     private void SearchChanged(object sender, TextChangedEventArgs e) { if (expanded) { RenderFiles(); if (desktopMode) PlaceDock(); } }
     private void OrderChanged(object sender, SelectionChangedEventArgs e) { if (ready && OrderBox.SelectedIndex >= 0) { Host.Settings.Order = (FileOrder)OrderBox.SelectedIndex; SaveSettings(); RefreshFiles(); } }
     [StructLayout(LayoutKind.Sequential)] private struct CursorPoint { public int X, Y; }
@@ -394,8 +471,9 @@ public partial class MainWindow : Window
     [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr hwnd, int id);
 }
 
-public sealed record FileTile(DesktopItem Item, ImageSource Icon, Brush Background)
+public sealed record FileTile(DesktopItem Item, Brush Background, double Side, int DisplayIndex)
 {
-    public string Caption => (Item.IsStored ? "収納済み · " : "") + Item.Detail;
-    public string Tooltip => Item.Name + "\n" + Item.Path + "\n" + Item.Modified.ToString("yyyy/MM/dd HH:mm") + (Item.IsStored ? "\nLateraroot に収納済み" : "");
+    public ImageSource Icon => ShellIcons.Get(Item.Path, Item.IsDirectory);
+    public Brush Foreground => WidgetVisuals.Ink(Background);
+    public string Tooltip => Item.Name + "\n" + Item.Path + "\n" + Item.Detail + " · " + Item.Modified.ToString("yyyy/MM/dd HH:mm") + (Item.IsStored ? "\nLateraroot に収納済み" : "");
 }
