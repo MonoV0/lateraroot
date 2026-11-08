@@ -236,6 +236,8 @@
                                     <TextBlock Text="上・左 ← → 下・右" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,6,0,0"/>
                                 </StackPanel>
                             </Grid>
+                            <CheckBox x:Name="LockPositionBox" Content="配置をロック（ドラッグ移動を無効にする）"/>
+                            <TextBlock Text="画面の端・ディスプレイ・位置は、この設定画面から変更できます。" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,16" TextWrapping="Wrap"/>
                             <TextBlock Text="見た目とアクセシビリティ" FontSize="16" Margin="0,0,0,8"/>
                             <CheckBox x:Name="TransparencyBox" Content="透明効果を減らす" Checked="TransparencyChanged" Unchecked="TransparencyChanged"/>
                             <TextBlock Text="ガラスを不透明にして読みやすくします。Windowsのハイコントラスト設定にも従います。" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"/>

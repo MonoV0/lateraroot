@@ -33,22 +33,20 @@ public sealed class DesktopLibrary
 
     public IReadOnlyList<DesktopItem> Scan(AppSettings settings, string? query = null)
     {
+        IEnumerable<DesktopItem> items = ReadFiles(settings);
+        if (!string.IsNullOrWhiteSpace(query)) items = items.Where(x => x.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase));
+        return FileCatalog.Order(items, settings.Order);
+    }
+
+    public IReadOnlyList<DesktopItem> ReadFiles(AppSettings settings)
+    {
         lock (gate)
         {
             var items = new List<DesktopItem>();
             AddDesktop(desktop, true);
             if (settings.IncludePublicDesktop && publicDesktop is not null && !string.Equals(desktop, publicDesktop, StringComparison.OrdinalIgnoreCase)) AddDesktop(publicDesktop, false);
             foreach (var record in records) AddItem(record.StoredPath, record.Id, false, record.AssignedStackId);
-            IEnumerable<DesktopItem> filtered = items;
-            if (!string.IsNullOrWhiteSpace(query)) filtered = filtered.Where(x => x.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase));
-            var ordered = settings.Order switch
-            {
-                FileOrder.Modified => filtered.OrderByDescending(x => x.Modified),
-                FileOrder.Type => filtered.OrderBy(x => x.Extension, StringComparer.CurrentCultureIgnoreCase),
-                FileOrder.Size => filtered.OrderByDescending(x => x.Size),
-                _ => filtered.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
-            };
-            return ordered.ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Path, StringComparer.OrdinalIgnoreCase).ToList();
+            return items;
 
             void AddDesktop(string directory, bool canMove)
             {

@@ -24,6 +24,7 @@ public partial class MainWindow
         Directory.CreateDirectory(output);
         try
         {
+            await initialRefresh;
             WidgetMotion.TestOverride = false;
             await Settled();
             var face = new Typeface(FontFamily, FontStyle, FontWeight, FontStretch);
@@ -55,9 +56,43 @@ public partial class MainWindow
             Capture(this, "compact.png");
             SearchBox.Text = "アイデア"; Check(visibleTiles.Count == 1, "Filename search");
             SearchBox.Text = "no-such-file"; Check(visibleTiles.Count == 0 && EmptyState.IsVisible, "Empty search state"); SearchBox.Text = "";
+            int readsBeforeSort = catalog.ReadCount;
             OrderBox.SelectedIndex = (int)FileOrder.Size; Check(Host.Settings.Order == FileOrder.Size, "Sort persistence"); OrderBox.SelectedIndex = 0;
+            Check(catalog.ReadCount == readsBeforeSort, "Sorting uses acquired data without reading the disk again");
+            var categoryBefore = desktopEdge.SquareCells[0]; var compactBefore = StackRail.Children[0]; var filesBefore = FileItems.ItemsSource;
+            await RefreshFilesAsync(force: true);
+            Check(ReferenceEquals(categoryBefore, desktopEdge.SquareCells[0]) && ReferenceEquals(compactBefore, StackRail.Children[0]) && ReferenceEquals(filesBefore, FileItems.ItemsSource), "Unchanged acquisition preserves category controls and the open file view");
+            string otherChange = Path.Combine(Host.DesktopDirectory, "監視確認.zzz");
+            File.WriteAllText(otherChange, "Watcher notification");
+            await WaitForFiles(() => allItems.Any(i => i.Path == otherChange));
+            Check(ReferenceEquals(filesBefore, FileItems.ItemsSource) && ReferenceEquals(categoryBefore, desktopEdge.SquareCells[0]), "A different genre updates counts without replacing the selected genre view");
+            File.Delete(otherChange); await RefreshFilesAsync(force: true);
+            foreach (var visibility in new[] { DockVisibility.Hidden, DockVisibility.Minimized })
+            {
+                await Task.Delay(750); await RefreshFilesAsync();
+                SetDockVisibility(visibility); int before = catalog.ReadCount;
+                string waiting = Path.Combine(Host.DesktopDirectory, $"待機確認-{visibility}.txt"); File.WriteAllText(waiting, "Deferred read");
+                await WaitForFiles(() => catalog.IsDirty || refreshQueued != 0); await Task.Delay(750);
+                Check(catalog.ReadCount == before && !allItems.Any(i => i.Path == waiting), $"{visibility} coalesces changes without background file reads");
+                SetDockVisibility(DockVisibility.Visible); await RefreshFilesAsync();
+                Check(allItems.Any(i => i.Path == waiting), $"{visibility} return acquires the pending changes");
+                File.Delete(waiting); await RefreshFilesAsync(force: true);
+            }
+            SelectStack("documents"); pinned = true; await Settled();
+            var lockAction = ((Button)StackRail.Children[0]).ContextMenu.Items.OfType<MenuItem>().Single(i => (string)i.Header == "配置をロック");
+            lockAction.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Check(Host.Settings.LockPosition && !DragHandle.IsEnabled && !MiniDragHandle.IsEnabled && !desktopEdge.CanDrag, "The shared lock command disables all three drag handles");
+            var placementBefore = (Host.Settings.Edge, Host.Settings.DockOffset, Host.Settings.Monitor);
+            DockDragStarted(DragHandle, new System.Windows.Controls.Primitives.DragStartedEventArgs(0, 0));
+            DockDragDelta(DragHandle, new System.Windows.Controls.Primitives.DragDeltaEventArgs(100, 100));
+            DockDragCompleted(DragHandle, new System.Windows.Controls.Primitives.DragCompletedEventArgs(100, 100, false));
+            Check(!dragging && placementBefore == (Host.Settings.Edge, Host.Settings.DockOffset, Host.Settings.Monitor) && JsonStore.Read(Host.SettingsPath, () => new AppSettings()).LockPosition, "Locked drag handlers cannot move or overwrite the saved placement");
+            lockAction.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Check(!Host.Settings.LockPosition && DragHandle.IsEnabled && MiniDragHandle.IsEnabled && desktopEdge.CanDrag, "Unlock restores dragging without disabling file interaction");
+            int manualBefore = catalog.ReadCount; await ReloadFilesAsync();
+            Check(catalog.ReadCount > manualBefore && StatusText.Text.Contains("再読み込み"), "Manual reload reacquires data and reports completion");
             for (int i = 1; i <= 16; i++) File.WriteAllText(Path.Combine(Host.DesktopDirectory, $"資料 {i:00}.txt"), "Widget demo");
-            RefreshFiles(); UpdateDesktopContext(true); await Settled();
+            await RefreshFilesAsync(force: true); UpdateDesktopContext(true); await Settled();
             Check(desktopEdge.IsVisible && !IsVisible && !desktopEdge.Topmost, "Desktop widgets live on the desktop rather than the topmost app layer");
             Check((WindowPlacement.GetWindowLongPtr(new WindowInteropHelper(desktopEdge).Handle, -20).ToInt64() & 8) == 0, "Native desktop window is non-topmost");
             Check(desktopEdge.SquareCells.All(c => Math.Abs(c.ActualWidth - c.ActualHeight) < .01 && c.ActualWidth >= 72), "All category and utility cells are actual squares");
@@ -98,7 +133,7 @@ public partial class MainWindow
             Check(realized < 25 && FileItems.ItemContainerGenerator.ContainerFromIndex(FileItems.Items.Count - 1) is null, "Native recycling bounds the realized rows");
             FileScroll!.ScrollToEnd(); await Settled();
             Check(FileItems.ItemContainerGenerator.ContainerFromIndex(FileItems.Items.Count - 1) is not null, "The final files can be scrolled into view");
-            allItems = baseline; showAll = false; RefreshFiles(); FileScroll?.ScrollToTop();
+            allItems = baseline; showAll = false; await RefreshFilesAsync(force: true); FileScroll?.ScrollToTop();
             SetDockVisibility(DockVisibility.Minimized); await Settled();
             Check(IsVisible && !desktopEdge.IsVisible && MinimizedTab.IsVisible, "Minimized widget tab");
             foreach (var edge in Enum.GetValues<DockEdge>())
@@ -140,16 +175,20 @@ public partial class MainWindow
             Check(settings.RemoveSelectedGenre(), "Custom genres can be removed before saving");
             settings.RulesList.SelectedItem = settings.RulesList.Items.Cast<StackRule>().First(r => r.Tokens.Contains("*"));
             Check(!settings.RemoveSelectedGenre() && !settings.RemoveButton.IsEnabled && !settings.KindBox.IsEnabled, "The required fallback genre is protected while its name and color remain editable");
-            settings.RulesList.SelectedIndex = 0; settings.TransparencyBox.IsChecked = true;
+            settings.RulesList.SelectedIndex = 0; settings.TransparencyBox.IsChecked = true; settings.LockPositionBox.IsChecked = true;
             Check(GlassSurface.GetReduced(settings), "Reduced transparency updates the preview through the shared material policy");
             settings.SaveDraft();
             var savedGenres = JsonStore.Read(Host.SettingsPath, () => new AppSettings());
             Check(savedGenres.Stacks[0].Name == "制作資料" && savedGenres.Stacks[0].Color == "#123456" && savedGenres.Stacks[0].Filter == ".blend, .psd" && savedGenres.ReduceTransparency, "Genre, arbitrary color, filter and transparency are saved together");
+            Check(savedGenres.LockPosition, "Position lock is saved through the same settings draft");
             settings.ResetColors();
             Check(settings.RulesList.Items.Cast<StackRule>().All(r => r.Color is "#FFFFFF" or "#000000") && settings.SelectedRule?.Name == "制作資料" && settings.SelectedRule.Filter == ".blend, .psd", "Monochrome reset preserves user genre names and classification rules");
             Check(Host.Settings.Stacks[0].Color == "#123456", "Subsequent draft edits do not mutate already-saved application settings");
             settings.Close(); Host.Settings = priorSettings; JsonStore.Write(Host.SettingsPath, priorSettings);
-            var cleanSettings = new SettingsWindow(); cleanSettings.Show(); await Settled(); Capture(cleanSettings, "settings.png"); cleanSettings.Close();
+            var cleanSettings = new SettingsWindow(); cleanSettings.Show(); await Settled(); Capture(cleanSettings, "settings.png");
+            Descendants<TabControl>(cleanSettings).Single().SelectedIndex = 1; await Settled();
+            Check(cleanSettings.LockPositionBox.IsVisible && cleanSettings.LockPositionBox.IsEnabled, "Placement lock remains directly accessible in layout settings");
+            Capture(cleanSettings, "settings-layout.png"); cleanSettings.Close();
             var updateProvider = new UiUpdateProvider(); var updateSession = new UpdateSession(updateProvider);
             var updateDialog = new UpdateWindow(updateSession, null); updateDialog.Show(); await Settled();
             Check(updateSession.Snapshot.Stage == UpdateStage.Available && updateDialog.UpdateAction.IsEnabled && (string)updateDialog.UpdateAction.Content == "ダウンロード", "Update dialog shows available release and explicit download");
@@ -162,9 +201,9 @@ public partial class MainWindow
             int total = allItems.Count;
             var stored = Host.Library.Organize(allItems.Where(x => x.CanOrganize));
             Check(stored.Succeeded == total && stored.Errors.Count == 0, "Explicit storage preserves the file workflow");
-            RefreshFiles(); Check(allItems.All(x => x.IsStored) && RestoreButton.IsEnabled, "Shared inspector tracks stored files");
+            await RefreshFilesAsync(force: true); Check(allItems.All(x => x.IsStored) && RestoreButton.IsEnabled, "Shared inspector tracks stored files");
             var restored = Host.Library.Restore(allItems.Select(x => x.RecordId!));
-            Check(restored.Succeeded == total && restored.Errors.Count == 0, "Collision-safe restoration regression"); RefreshFiles();
+            Check(restored.Succeeded == total && restored.Errors.Count == 0, "Collision-safe restoration regression"); await RefreshFilesAsync(force: true);
             Check(allItems.All(x => !x.IsStored), "Restored files have no duplicate library entries");
             WidgetMotion.TestOverride = true; Host.Settings.ReduceMotion = false;
             UpdateDesktopContext(true); SelectStack("documents"); closeTimer.Stop(); pinned = true;
@@ -290,6 +329,11 @@ public partial class MainWindow
             stream.Write(bytes.AsSpan(0, offset)); stream.Write(new byte[] { 0x21, 0xff, 11 }); stream.Write("NETSCAPE2.0"u8); stream.Write(new byte[] { 3, 1, 0, 0, 0 }); stream.Write(bytes.AsSpan(offset));
         }
         async Task Settled() { closeTimer.Stop(); await Dispatcher.InvokeAsync(UpdateLayout, DispatcherPriority.ApplicationIdle); await Task.Delay(80); }
+        async Task WaitForFiles(Func<bool> condition)
+        {
+            var timeout = System.Diagnostics.Stopwatch.StartNew();
+            while (!condition()) { if (timeout.Elapsed > TimeSpan.FromSeconds(8)) throw new InvalidOperationException("File notification did not reach the view"); closeTimer.Stop(); await Task.Delay(50); }
+        }
     }
     [StructLayout(LayoutKind.Sequential)] private struct WindowRect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out WindowRect rect);

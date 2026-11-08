@@ -38,6 +38,7 @@ public sealed class AppSettings
     public int TileSize { get; set; } = 88;
     public bool ReduceMotion { get; set; }
     public bool ReduceTransparency { get; set; }
+    public bool LockPosition { get; set; }
     public bool CheckForUpdates { get; set; } = true;
     public List<StackRule> Stacks { get; set; } = Defaults();
 

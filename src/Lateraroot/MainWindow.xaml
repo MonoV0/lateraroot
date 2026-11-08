@@ -175,7 +175,7 @@
                     <ColumnDefinition x:Name="MiniFirstCol" Width="*"/>
                     <ColumnDefinition x:Name="MiniSecondCol" Width="0"/>
                 </Grid.ColumnDefinitions>
-                <Thumb Cursor="SizeAll" DragStarted="DockDragStarted" DragDelta="DockDragDelta" DragCompleted="DockDragCompleted">
+                <Thumb x:Name="MiniDragHandle" Cursor="SizeAll" DragStarted="DockDragStarted" DragDelta="DockDragDelta" DragCompleted="DockDragCompleted">
                     <Thumb.Template>
                         <ControlTemplate>
                             <Border Background="White">

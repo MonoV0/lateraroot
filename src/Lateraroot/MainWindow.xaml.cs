@@ -12,6 +12,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using System.Threading.Tasks;
+using System.Threading;
 using Lateraroot.Core;
 using Forms = System.Windows.Forms;
 
@@ -22,12 +23,21 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer closeTimer = new();
     private readonly DispatcherTimer refreshTimer = new() { Interval = TimeSpan.FromMilliseconds(650) };
     private readonly DispatcherTimer updateTimer = new() { Interval = TimeSpan.FromDays(1) };
-    internal bool CanRestartForUpdate => !busy;
+    internal bool CanRestartForUpdate => !busy && !organizePending;
     private readonly List<FileSystemWatcher> watchers = [];
     private readonly Forms.NotifyIcon tray;
+    private readonly Forms.ToolStripMenuItem positionLockItem;
+    private readonly WidgetActions actions;
+    private readonly FileCatalog catalog;
+    private Task initialRefresh = Task.CompletedTask;
+    private int refreshQueued;
+    private bool stopping;
+    private bool filesLoaded;
+    private bool organizePending;
+    private (string Id, string Name, string Color)[] railAppearance = [];
     private IReadOnlyList<DesktopItem> allItems = [];
     private string selectedStack;
-    private bool expanded, pinned, ready, busy, desktopMode, showAll, dragging, libraryDirty, widgetInspector, closingPanel, animateTiles;
+    private bool expanded, pinned, ready, busy, desktopMode, showAll, dragging, widgetInspector, closingPanel, animateTiles;
     private int motionGeneration;
     private IReadOnlyList<FileTile> visibleTiles = [];
     private int tileColumns = 1;
@@ -43,17 +53,25 @@ public partial class MainWindow : Window
     {
         selectedStack = Host.Settings.Stacks[0].Id;
         InitializeComponent();
+        catalog = new(settings => Host.Library.ReadFiles(settings));
+        actions = new(SelectStack, OpenSettings, ShowInspector, () => _ = ReloadFilesAsync(), TogglePositionLock,
+            () => SetDockVisibility(DockVisibility.Minimized), () => SetDockVisibility(DockVisibility.Hidden),
+            open => { if (open) { modalDepth++; closeTimer.Stop(); } else EndModal(); });
         ShowInTaskbar = Host.IsSandbox;
         OrderBox.SelectedIndex = (int)Host.Settings.Order;
         closeTimer.Tick += (_, _) => { closeTimer.Stop(); if (!IsMouseOver && !desktopEdge.IsMouseOver && !IsKeyboardFocusWithin && !pinned && modalDepth == 0 && !busy && !dragging) Collapse(); };
         Deactivated += (_, _) => { if (ready && expanded && !pinned && modalDepth == 0 && !busy) WindowLeave(this, null!); };
-        refreshTimer.Tick += (_, _) => { refreshTimer.Stop(); if (!busy && Host.Settings.Visibility != DockVisibility.Hidden) RefreshFiles(); };
+        refreshTimer.Tick += async (_, _) => { refreshTimer.Stop(); if (!busy && Host.Settings.Visibility == DockVisibility.Visible) await RefreshFilesAsync(); };
         tray = new Forms.NotifyIcon { Icon = System.Drawing.SystemIcons.Application, Text = "Lateraroot", Visible = true };
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("表示する  (Ctrl+Alt+Space)", null, (_, _) => Dispatcher.Invoke(RestoreDock));
         menu.Items.Add("最小化", null, (_, _) => Dispatcher.Invoke(() => SetDockVisibility(DockVisibility.Minimized)));
         menu.Items.Add("非表示", null, (_, _) => Dispatcher.Invoke(() => SetDockVisibility(DockVisibility.Hidden)));
         menu.Items.Add("設定", null, (_, _) => Dispatcher.Invoke(OpenSettings));
+        menu.Items.Add("一覧を再読み込み", null, async (_, _) => await Dispatcher.InvokeAsync(ReloadFilesAsync).Task.Unwrap());
+        positionLockItem = new Forms.ToolStripMenuItem("配置をロック");
+        positionLockItem.Click += (_, _) => Dispatcher.Invoke(TogglePositionLock); menu.Items.Add(positionLockItem);
+        menu.Opening += (_, _) => positionLockItem.Checked = Host.Settings.LockPosition;
         menu.Items.Add("更新を確認", null, (_, _) => Dispatcher.Invoke(OpenUpdates));
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("終了", null, (_, _) => Dispatcher.Invoke(() => Host.Shutdown()));
@@ -68,8 +86,8 @@ public partial class MainWindow : Window
             source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
             source?.AddHook(WindowMessage);
             if (!RegisterHotKey(new WindowInteropHelper(this).Handle, 1, 0x4003, 0x20)) StatusText.Text = "ホットキーを使用できません。通知領域から開けます。";
-            desktopEdge = new DesktopEdgeWindow(SelectStack, OpenSettings, ShowInspector, () => SetDockVisibility(DockVisibility.Minimized), () => SetDockVisibility(DockVisibility.Hidden), () => closeTimer.Stop(), () => WindowLeave(this, null!), DockDragStarted, DockDragDelta, DockDragCompleted);
-            RefreshFiles(); RestartWatchers();
+            desktopEdge = new DesktopEdgeWindow(actions, () => closeTimer.Stop(), () => WindowLeave(this, null!), DockDragStarted, DockDragDelta, DockDragCompleted);
+            BuildRail(); RestartWatchers(); initialRefresh = RefreshFilesAsync();
             if (!Host.IsVerifying)
             {
                 contextMonitor = new DesktopContextMonitor(value => Dispatcher.BeginInvoke(() => UpdateDesktopContext(value)));
@@ -83,6 +101,7 @@ public partial class MainWindow : Window
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += DisplayChanged;
         Closed += (_, _) =>
         {
+            stopping = true;
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= DisplayChanged;
             closeTimer.Stop(); refreshTimer.Stop(); updateTimer.Stop(); contextMonitor?.Dispose();
             foreach (var watcher in watchers) watcher.Dispose();
@@ -96,11 +115,12 @@ public partial class MainWindow : Window
     private void DisplayChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(() => { desktopEdge.Place(); ApplyPresentation(); });
     private void ApplyPresentation()
     {
-        if (!ready) return;
+        if (!ready || stopping) return;
         CancelTransition();
         WidgetMotion.SetEnabled(this, WidgetMotion.Allowed);
         GlassSurface.SetReduced(this, Host.Settings.ReduceTransparency || SystemParameters.HighContrast);
         GlassSurface.SetReduced(desktopEdge, Host.Settings.ReduceTransparency || SystemParameters.HighContrast);
+        UpdatePositionLock();
         Topmost = !desktopMode;
         var visibility = Host.Settings.Visibility;
         if (visibility == DockVisibility.Hidden) { FileItems.ItemsSource = null; visibleTiles = []; Panel.Visibility = Visibility.Collapsed; desktopEdge.Hide(); Hide(); return; }
@@ -154,27 +174,62 @@ public partial class MainWindow : Window
     }
     private void QueueRefresh()
     {
-        if (!Dispatcher.HasShutdownStarted) Dispatcher.BeginInvoke(() => { libraryDirty = true; refreshTimer.Stop(); refreshTimer.Start(); });
+        if (stopping || Dispatcher.HasShutdownStarted || Interlocked.Exchange(ref refreshQueued, 1) != 0) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (stopping) return;
+            catalog.Invalidate();
+            if (Host.Settings.Visibility == DockVisibility.Visible) refreshTimer.Start();
+            // While hidden/minimized, retain one pending notification until the user returns.
+        });
     }
-    private void RefreshFiles()
+    private async Task<bool> RefreshFilesAsync(bool force = false)
     {
-        if (!ready || busy) return;
-        allItems = Host.Library.Scan(Host.Settings);
-        libraryDirty = false;
-        if (!Host.Settings.Stacks.Any(x => x.Id == selectedStack)) selectedStack = Host.Settings.Stacks[0].Id;
-        BuildRail();
-        if (expanded) { RenderFiles(); PlaceDock(); }
+        if (!ready || busy || stopping) return false;
+        refreshTimer.Stop(); Interlocked.Exchange(ref refreshQueued, 0);
+        try
+        {
+            var snapshot = await catalog.RefreshAsync(Host.Settings, force);
+            if (stopping || busy || snapshot != catalog.Current) return false;
+            var ordered = FileCatalog.Order(snapshot.Items, Host.Settings.Order);
+            if (allItems.SequenceEqual(ordered))
+            {
+                if (!filesLoaded && expanded) RenderFiles();
+                filesLoaded = true; return true;
+            }
+            filesLoaded = true;
+            var previous = allItems.Where(i => i.StackId == selectedStack).ToArray();
+            allItems = ordered;
+            if (!Host.Settings.Stacks.Any(x => x.Id == selectedStack)) selectedStack = Host.Settings.Stacks[0].Id;
+            BuildRail();
+            OrganizeButton.IsEnabled = !organizePending && allItems.Any(x => x.CanOrganize);
+            if (expanded && !previous.SequenceEqual(allItems.Where(i => i.StackId == selectedStack))) { RenderFiles(); PlaceDock(); }
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        { if (!stopping) StatusText.Text = "ファイル一覧を読み込めませんでした。右クリックの「一覧を再読み込み」から再試行できます。"; return false; }
+    }
+    private async Task ReloadFilesAsync()
+    {
+        if (busy || stopping) return;
+        RestartWatchers();
+        StatusText.Text = "ファイル一覧を読み込んでいます…";
+        if (await RefreshFilesAsync(force: true)) StatusText.Text = "ファイル一覧を再読み込みしました。";
     }
     private void BuildRail()
     {
         var counts = allItems.GroupBy(x => x.StackId).ToDictionary(x => x.Key, x => x.Count());
-        StackRail.Children.Clear();
+        var appearance = Host.Settings.Stacks.Select(s => (s.Id, s.Name, s.Color)).ToArray();
+        bool rebuild = !railAppearance.SequenceEqual(appearance);
+        if (rebuild) { StackRail.Children.Clear(); railAppearance = appearance; }
         int index = 0;
         foreach (var stack in Host.Settings.Stacks)
         {
+            if (!rebuild) { DesktopEdgeWindow.UpdateCount((Grid)((Button)StackRail.Children[index++]).Content, counts.GetValueOrDefault(stack.Id)); continue; }
             var label = DesktopEdgeWindow.GenreLabel(stack, index++, counts.GetValueOrDefault(stack.Id), true);
             var button = new Button { Content = label, Width = 66, Height = 66, Padding = new Thickness(0), BorderThickness = new Thickness(0), Background = DesktopEdgeWindow.ColorBrush(stack.Color), ToolTip = stack.Name, Style = (Style)FindResource("SquareButton") };
             button.Foreground = WidgetVisuals.Ink(button.Background);
+            button.ContextMenu = actions.CreateMenu(stack.Id);
             System.Windows.Automation.AutomationProperties.SetName(button, stack.Name + " ウィジェット");
             button.MouseEnter += (_, _) => { if (!dragging) SelectStack(stack.Id); };
             button.Click += (_, _) => { SelectStack(stack.Id); Activate(); };
@@ -219,10 +274,10 @@ public partial class MainWindow : Window
         WidgetToggleCount.Text = items.Count.ToString("00");
         SearchHint.Visibility = SearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyState.Visibility = visibleTiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        EmptyTitle.Text = SearchBox.Text.Length > 0 ? "一致するファイルはありません" : "ファイルはありません";
+        EmptyTitle.Text = catalog.IsReading && allItems.Count == 0 ? "ファイルを読み込んでいます…" : SearchBox.Text.Length > 0 ? "一致するファイルはありません" : "ファイルはありません";
         EmptyDescription.Visibility = widget ? Visibility.Collapsed : Visibility.Visible;
         EmptyDescription.Text = SearchBox.Text.Length > 0 ? "別のファイル名で検索してください。" : "分類ルールは設定から変更できます。";
-        RestoreButton.IsEnabled = items.Any(x => x.IsStored); OrganizeButton.IsEnabled = allItems.Any(x => x.CanOrganize);
+        RestoreButton.IsEnabled = items.Any(x => x.IsStored); OrganizeButton.IsEnabled = !organizePending && allItems.Any(x => x.CanOrganize);
         ExpandAllButton.Background = DesktopEdgeWindow.ColorBrush(stack.Color);
         ExpandAllButton.Foreground = WidgetToggleArrow.Stroke = WidgetVisuals.Ink(ExpandAllButton.Background);
     }
@@ -247,7 +302,7 @@ public partial class MainWindow : Window
     {
         closeTimer.Stop();
         if (expanded) return;
-        if (libraryDirty) RefreshFiles();
+        if (catalog.IsDirty || refreshQueued != 0) _ = RefreshFilesAsync();
         expanded = true; showAll = widgetInspector = false;
         PresentWithMotion();
     }
@@ -341,24 +396,38 @@ public partial class MainWindow : Window
     {
         Host.Settings.Visibility = value; expanded = pinned = showAll = widgetInspector = false;
         PinButton.Content = "固定";
-        if (value == DockVisibility.Visible && libraryDirty) RefreshFiles();
+        if (value == DockVisibility.Visible && (catalog.IsDirty || refreshQueued != 0)) _ = RefreshFilesAsync();
         SaveSettings(); ApplyPresentation();
     }
     private void RestoreDock() { SetDockVisibility(DockVisibility.Visible); if (!desktopMode) Expand(); }
     private void RestoreDockClick(object sender, RoutedEventArgs e) => RestoreDock();
     private void MinimizeDock(object sender, RoutedEventArgs e) => SetDockVisibility(DockVisibility.Minimized);
     private void HideDock(object sender, RoutedEventArgs e) => SetDockVisibility(DockVisibility.Hidden);
-    private void DockDragStarted(object sender, DragStartedEventArgs e) { dragging = true; expanded = pinned = false; ApplyPresentation(); }
+    private void DockDragStarted(object sender, DragStartedEventArgs e) { if (Host.Settings.LockPosition) return; dragging = true; expanded = pinned = false; ApplyPresentation(); }
     private void DockDragDelta(object sender, DragDeltaEventArgs e)
     {
-        if (!GetCursorPos(out var point)) return;
+        if (Host.Settings.LockPosition || !dragging || !GetCursorPos(out var point)) return;
         var screen = Forms.Screen.FromPoint(new System.Drawing.Point(point.X, point.Y));
         double length = Host.Settings.Visibility == DockVisibility.Minimized ? 112 : desktopMode ? (DockLayout.IsVertical(Host.Settings.Edge) ? desktopEdge.Height : desktopEdge.Width) : 620;
         var snap = DockLayout.Snap(WindowPlacement.Area(screen), point.X, point.Y, WindowPlacement.Scale(this, screen), length);
         Host.Settings.Edge = snap.Edge; Host.Settings.DockOffset = snap.Offset; Host.Settings.Monitor = screen.DeviceName;
         if (desktopMode) desktopEdge.Place(); else PlaceDock();
     }
-    private void DockDragCompleted(object sender, DragCompletedEventArgs e) { dragging = false; SaveSettings(); BuildRail(); ApplyDeferredContext(); ApplyPresentation(); }
+    private void DockDragCompleted(object sender, DragCompletedEventArgs e) { if (!dragging) return; dragging = false; SaveSettings(); BuildRail(); ApplyDeferredContext(); ApplyPresentation(); }
+    private void TogglePositionLock()
+    {
+        Host.Settings.LockPosition = !Host.Settings.LockPosition;
+        if (Host.Settings.LockPosition) dragging = false;
+        SaveSettings(); UpdatePositionLock(); ApplyDeferredContext(); ApplyPresentation();
+    }
+    private void UpdatePositionLock()
+    {
+        bool unlocked = !Host.Settings.LockPosition;
+        DragHandle.IsEnabled = MiniDragHandle.IsEnabled = unlocked;
+        DragHandle.ToolTip = MiniDragHandle.ToolTip = unlocked ? "ドラッグして配置" : "配置はロックされています。設定や右クリックから解除できます。";
+        ToolTipService.SetShowOnDisabled(DragHandle, true); ToolTipService.SetShowOnDisabled(MiniDragHandle, true);
+        positionLockItem.Checked = !unlocked; desktopEdge.UpdateDragLock();
+    }
     private void SaveSettings()
     {
         try { JsonStore.Write(Host.SettingsPath, Host.Settings); }
@@ -375,9 +444,10 @@ public partial class MainWindow : Window
         else if (e.Key == Key.PageDown) { FileScroll?.PageDown(); e.Handled = true; }
         else if (e.Key == Key.PageUp) { FileScroll?.PageUp(); e.Handled = true; }
         else if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control) { ShowInspector(); e.Handled = true; }
+        else if (e.Key == Key.F5) { _ = ReloadFilesAsync(); e.Handled = true; }
     }
     private void SearchChanged(object sender, TextChangedEventArgs e) { if (expanded) { RenderFiles(); if (desktopMode) PlaceDock(); } }
-    private void OrderChanged(object sender, SelectionChangedEventArgs e) { if (ready && OrderBox.SelectedIndex >= 0) { Host.Settings.Order = (FileOrder)OrderBox.SelectedIndex; SaveSettings(); RefreshFiles(); } }
+    private void OrderChanged(object sender, SelectionChangedEventArgs e) { if (ready && OrderBox.SelectedIndex >= 0) { Host.Settings.Order = (FileOrder)OrderBox.SelectedIndex; SaveSettings(); allItems = FileCatalog.Order(allItems, Host.Settings.Order); if (expanded) RenderFiles(); } }
     [StructLayout(LayoutKind.Sequential)] private struct CursorPoint { public int X, Y; }
     [DllImport("user32.dll")] private static extern bool GetCursorPos(out CursorPoint point);
 
@@ -388,7 +458,7 @@ public partial class MainWindow : Window
     private void Launch(string path)
     {
         try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException or InvalidOperationException) { ShowMessage("ファイルを開けませんでした。\n" + ex.Message); RefreshFiles(); }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException or InvalidOperationException) { ShowMessage("ファイルを開けませんでした。\n" + ex.Message); _ = RefreshFilesAsync(force: true); }
     }
     private DesktopItem? MenuItemFile(object sender) => ((sender as MenuItem)?.Parent as ContextMenu)?.PlacementTarget is Button button ? button.Tag as DesktopItem : null;
     private void FileMenuOpened(object sender, RoutedEventArgs e)
@@ -399,7 +469,9 @@ public partial class MainWindow : Window
     }
     private void EndModal()
     {
-        modalDepth = Math.Max(0, modalDepth - 1); ApplyDeferredContext(); ApplyPresentation();
+        modalDepth = Math.Max(0, modalDepth - 1);
+        if (stopping) return;
+        ApplyDeferredContext(); ApplyPresentation();
         if (!IsMouseOver && !pinned) WindowLeave(this, null!);
     }
     private void FileMenuClosed(object sender, RoutedEventArgs e) => EndModal();
@@ -416,13 +488,19 @@ public partial class MainWindow : Window
 
     private async void OrganizeDesktop(object sender, RoutedEventArgs e)
     {
-        RefreshFiles();
-        var items = allItems.Where(x => x.CanOrganize).ToList();
-        if (items.Count == 0) return;
-        modalDepth++;
-        var answer = MessageBox.Show(this, $"デスクトップの {items.Count} 個のファイル・フォルダーを Lateraroot に収納します。\n\n収納後もスタックから開けます。「元に戻す」で復元できます。\n共有デスクトップ・隠し項目は移動しません。\n\n保存先: {Host.Library.VaultPath}\n\n実行しますか？", "デスクトップを整理", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
-        EndModal();
-        if (answer == MessageBoxResult.Yes) await RunOperation(() => Host.Library.Organize(items), "収納");
+        if (busy || organizePending) return;
+        organizePending = true; OrganizeButton.IsEnabled = false;
+        try
+        {
+            if (!await RefreshFilesAsync(force: true)) return;
+            var items = allItems.Where(x => x.CanOrganize).ToList();
+            if (items.Count == 0) return;
+            modalDepth++;
+            var answer = MessageBox.Show(this, $"デスクトップの {items.Count} 個のファイル・フォルダーを Lateraroot に収納します。\n\n収納後もスタックから開けます。「元に戻す」で復元できます。\n共有デスクトップ・隠し項目は移動しません。\n\n保存先: {Host.Library.VaultPath}\n\n実行しますか？", "デスクトップを整理", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+            EndModal();
+            if (answer == MessageBoxResult.Yes) await RunOperation(() => Host.Library.Organize(items), "収納");
+        }
+        finally { organizePending = false; OrganizeButton.IsEnabled = allItems.Any(x => x.CanOrganize); }
     }
 
     private async void RestoreStack(object sender, RoutedEventArgs e)
@@ -443,7 +521,7 @@ public partial class MainWindow : Window
             if (result.Errors.Count > 0) ShowMessage($"{result.Errors.Count} 個の項目を処理できませんでした。\n" + string.Join("\n", result.Errors.Take(5)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { ShowMessage(verb + "できませんでした。\n" + ex.Message); }
-        finally { busy = false; Panel.IsEnabled = true; RefreshFiles(); ApplyDeferredContext(); if (!IsMouseOver && !pinned) WindowLeave(this, null!); }
+        finally { busy = false; Panel.IsEnabled = true; await RefreshFilesAsync(force: true); ApplyDeferredContext(); if (!IsMouseOver && !pinned) WindowLeave(this, null!); }
     }
 
     private void ShowMessage(string message)
@@ -454,15 +532,17 @@ public partial class MainWindow : Window
     }
 
     private void ShowSettings(object sender, RoutedEventArgs e) => OpenSettings();
-    private void OpenSettings()
+    private async void OpenSettings()
     {
         if (busy) return;
         modalDepth++; closeTimer.Stop();
         try
         {
             var dialog = new SettingsWindow { Owner = this };
+            bool publicDesktop = Host.Settings.IncludePublicDesktop;
             dialog.ShowDialog();
-            RestartWatchers(); RefreshFiles(); ApplyPresentation();
+            if (publicDesktop != Host.Settings.IncludePublicDesktop) RestartWatchers();
+            await RefreshFilesAsync(); BuildRail(); ApplyPresentation();
         }
         finally { EndModal(); }
     }

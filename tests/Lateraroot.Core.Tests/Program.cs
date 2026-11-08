@@ -169,6 +169,7 @@ var tests = new List<(string Name, Action Run)>
 };
 int failures = 0;
 tests.AddRange(UpdateTests.Cases());
+tests.AddRange(FileCatalogTests.Cases());
 try
 {
     foreach (var (name, run) in tests)
