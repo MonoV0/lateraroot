@@ -38,16 +38,18 @@
                 <Grid x:Name="SearchTools" Grid.Row="1" Grid.Column="1" Margin="0,0,0,20">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="124"/>
+                        <ColumnDefinition Width="104"/>
+                        <ColumnDefinition Width="72"/>
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="SearchBox" TextChanged="SearchChanged" AutomationProperties.Name="ファイルを検索" ToolTip="ファイル名で検索" Margin="0,0,8,0"/>
                     <TextBlock x:Name="SearchHint" Text="ファイルを検索" Foreground="{StaticResource Muted}" Margin="10,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
                     <ComboBox x:Name="OrderBox" Grid.Column="1" SelectionChanged="OrderChanged" AutomationProperties.Name="並び順">
                         <ComboBoxItem Content="名前順"/>
-                        <ComboBoxItem Content="更新が新しい順"/>
+                        <ComboBoxItem Content="更新日時"/>
                         <ComboBoxItem Content="種類順"/>
                         <ComboBoxItem Content="サイズ順"/>
                     </ComboBox>
+                    <ComboBox x:Name="DirectionBox" Grid.Column="2" Margin="6,0,0,0" SelectionChanged="OrderChanged" AutomationProperties.Name="並び順の方向"><ComboBoxItem Content="昇順"/><ComboBoxItem Content="降順"/></ComboBox>
                 </Grid>
                 <Grid Grid.Row="2" Grid.Column="1" x:Name="FilesSurface">
                     <ListBox x:Name="FileItems" BorderThickness="0" Background="Transparent" Padding="0" ScrollViewer.CanContentScroll="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Hidden" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel" VirtualizingPanel.CacheLength="0.5">

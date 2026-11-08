@@ -34,7 +34,8 @@ public partial class MainWindow : Window
     private bool stopping;
     private bool filesLoaded;
     private bool organizePending;
-    private (string Id, string Name, string Color)[] railAppearance = [];
+    private (string Id, string Name, string Color, GenreIcon Icon)[] railAppearance = [];
+    private bool railIconsOnly, updatingSort;
     private IReadOnlyList<DesktopItem> allItems = [];
     private string selectedStack;
     private bool expanded, pinned, ready, busy, desktopMode, showAll, dragging, widgetInspector, closingPanel;
@@ -60,9 +61,10 @@ public partial class MainWindow : Window
         catalog = new(settings => Host.Library.ReadFiles(settings));
         actions = new(SelectStack, OpenSettings, ShowInspector, () => _ = ReloadFilesAsync(), TogglePositionLock,
             () => SetDockVisibility(DockVisibility.Minimized), () => SetDockVisibility(DockVisibility.Hidden),
-            open => { if (open) { modalDepth++; closeTimer.Stop(); } else EndModal(); });
+            open => { if (open) { modalDepth++; closeTimer.Stop(); } else EndModal(); }, ChangeSort);
         ShowInTaskbar = Host.IsSandbox;
         OrderBox.SelectedIndex = (int)Host.Settings.Order;
+        DirectionBox.SelectedIndex = Host.Settings.EffectiveDescending ? 1 : 0;
         closeTimer.Tick += (_, _) => { closeTimer.Stop(); if (!IsMouseOver && !desktopEdge.IsMouseOver && !IsKeyboardFocusWithin && !pinned && modalDepth == 0 && !busy && !dragging) Collapse(); };
         Deactivated += (_, _) => { if (ready && expanded && !pinned && modalDepth == 0 && !busy) WindowLeave(this, null!); };
         refreshTimer.Tick += async (_, _) => { refreshTimer.Stop(); if (!busy && Host.Settings.Visibility == DockVisibility.Visible) await RefreshFilesAsync(); };
@@ -224,7 +226,7 @@ public partial class MainWindow : Window
         {
             var snapshot = await catalog.RefreshAsync(Host.Settings, force);
             if (stopping || busy || snapshot != catalog.Current) return false;
-            var ordered = FileCatalog.Order(snapshot.Items, Host.Settings.Order);
+            var ordered = FileCatalog.Order(snapshot.Items, Host.Settings.Order, Host.Settings.SortDescending);
             if (allItems.SequenceEqual(ordered))
             {
                 if (!filesLoaded && expanded) RenderFiles();
@@ -252,9 +254,9 @@ public partial class MainWindow : Window
     private void BuildRail()
     {
         var counts = allItems.GroupBy(x => x.StackId).ToDictionary(x => x.Key, x => x.Count());
-        var appearance = Host.Settings.Stacks.Select(s => (s.Id, s.Name, s.Color)).ToArray();
-        bool rebuild = !railAppearance.SequenceEqual(appearance);
-        if (rebuild) { StackRail.Children.Clear(); railAppearance = appearance; }
+        var appearance = Host.Settings.Stacks.Select(s => (s.Id, s.Name, s.Color, s.Icon)).ToArray();
+        bool rebuild = !railAppearance.SequenceEqual(appearance) || railIconsOnly != Host.Settings.GenreIconsOnly;
+        if (rebuild) { StackRail.Children.Clear(); railAppearance = appearance; railIconsOnly = Host.Settings.GenreIconsOnly; }
         int index = 0;
         foreach (var stack in Host.Settings.Stacks)
         {
@@ -396,7 +398,7 @@ public partial class MainWindow : Window
             WindowPlacement.Place(this, DockLayout.Flyout(area, edge, Host.Settings.Stacks.FindIndex(x => x.Id == selectedStack), Host.Settings.Stacks.Count, scale, width, height, Host.Settings.TileSize, Host.Settings.DockOffset), scale);
             return;
         }
-        var rect = DockLayout.Compact(area, edge, Host.Settings.DockOffset, scale, expanded, minimized);
+        var rect = DockLayout.Compact(area, edge, Host.Settings.DockOffset, scale, expanded, minimized, Host.Settings.Stacks.Count);
         var railSize = new GridLength(minimized ? 26 : 66);
         if (vertical)
         {
@@ -452,7 +454,7 @@ public partial class MainWindow : Window
     {
         if (Host.Settings.LockPosition || !dragging || !GetCursorPos(out var point)) return;
         var screen = Forms.Screen.FromPoint(new System.Drawing.Point(point.X, point.Y));
-        double length = Host.Settings.Visibility == DockVisibility.Minimized ? 112 : desktopMode ? (DockLayout.IsVertical(Host.Settings.Edge) ? desktopEdge.Height : desktopEdge.Width) : 620;
+        double length = Host.Settings.Visibility == DockVisibility.Minimized ? 112 : desktopMode ? (DockLayout.IsVertical(Host.Settings.Edge) ? desktopEdge.Height : desktopEdge.Width) : DockLayout.IsVertical(Host.Settings.Edge) ? Height : Width;
         var snap = DockLayout.Snap(WindowPlacement.Area(screen), point.X, point.Y, WindowPlacement.Scale(this, screen), length);
         Host.Settings.Edge = snap.Edge; Host.Settings.DockOffset = snap.Offset; Host.Settings.Monitor = screen.DeviceName;
         if (desktopMode) desktopEdge.Place(); else PlaceDock();
@@ -492,7 +494,15 @@ public partial class MainWindow : Window
         else if (e.Key == Key.F5) { _ = ReloadFilesAsync(); e.Handled = true; }
     }
     private void SearchChanged(object sender, TextChangedEventArgs e) { if (expanded) { RenderFiles(); if (desktopMode) PlaceDock(); } }
-    private void OrderChanged(object sender, SelectionChangedEventArgs e) { if (ready && OrderBox.SelectedIndex >= 0) { Host.Settings.Order = (FileOrder)OrderBox.SelectedIndex; SaveSettings(); allItems = FileCatalog.Order(allItems, Host.Settings.Order); if (expanded) RenderFiles(); } }
+    private void OrderChanged(object sender, SelectionChangedEventArgs e)
+    { if (ready && !updatingSort && OrderBox.SelectedIndex >= 0 && DirectionBox.SelectedIndex >= 0) ChangeSort((FileOrder)OrderBox.SelectedIndex, DirectionBox.SelectedIndex == 1); }
+    private void ChangeSort(FileOrder order, bool descending)
+    {
+        Host.Settings.Order = order; Host.Settings.SortDescending = descending;
+        updatingSort = true; OrderBox.SelectedIndex = (int)order; DirectionBox.SelectedIndex = descending ? 1 : 0; updatingSort = false;
+        SaveSettings(); allItems = FileCatalog.Order(allItems, order, descending);
+        if (expanded) { RenderFiles(); FileScroll?.ScrollToTop(); }
+    }
     [StructLayout(LayoutKind.Sequential)] private struct CursorPoint { public int X, Y; }
     [DllImport("user32.dll")] private static extern bool GetCursorPos(out CursorPoint point);
 
@@ -587,6 +597,7 @@ public partial class MainWindow : Window
             bool publicDesktop = Host.Settings.IncludePublicDesktop;
             dialog.ShowDialog();
             if (publicDesktop != Host.Settings.IncludePublicDesktop) RestartWatchers();
+            updatingSort = true; OrderBox.SelectedIndex = (int)Host.Settings.Order; DirectionBox.SelectedIndex = Host.Settings.EffectiveDescending ? 1 : 0; updatingSort = false;
             await RefreshFilesAsync(); BuildRail(); ApplyPresentation();
         }
         finally { EndModal(); }

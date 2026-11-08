@@ -3,17 +3,20 @@ namespace Lateraroot.Core;
 public enum DockEdge { Right, Left, Top, Bottom }
 public enum DockVisibility { Visible, Minimized, Hidden }
 public enum FileOrder { Name, Modified, Type, Size }
+public enum GenreIcon { Auto, Image, Document, Media, Archive, Game, Shortcut, Folder, Other }
 
 public sealed class StackRule : System.ComponentModel.INotifyPropertyChanged
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     private string name = "新しいジャンル", color = "#FFFFFF", filter = ".txt";
+    private GenreIcon icon;
     public string Name { get => name; set => Set(ref name, value); }
     public string Color { get => color; set => Set(ref color, value); }
     public string Filter { get => filter; set => Set(ref filter, value); }
+    public GenreIcon Icon { get => icon; set => Set(ref icon, value); }
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
-    private void Set(ref string field, string value, [System.Runtime.CompilerServices.CallerMemberName] string? property = null)
-    { if (field == value) return; field = value; PropertyChanged?.Invoke(this, new(property)); }
+    private void Set<T>(ref T field, T value, [System.Runtime.CompilerServices.CallerMemberName] string? property = null)
+    { if (EqualityComparer<T>.Default.Equals(field, value)) return; field = value; PropertyChanged?.Invoke(this, new(property)); }
 
     [System.Text.Json.Serialization.JsonIgnore]
     public string[] Tokens => Filter.Split([',', ';', ' ', '、'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
@@ -21,6 +24,7 @@ public sealed class StackRule : System.ComponentModel.INotifyPropertyChanged
 
     public bool Matches(string path, bool directory) => Tokens.Any(token => directory
         ? token == "<folders>"
+        : token == "<games>" ? GameClassifier.IsGame(path)
         : token != "*" && token != "<folders>" && string.Equals(Path.GetExtension(path), Normalize(token), StringComparison.OrdinalIgnoreCase));
 
     private static string Normalize(string token) => token.StartsWith("*.") ? token[1..] : token.StartsWith('.') ? token : "." + token;
@@ -30,6 +34,11 @@ public sealed class AppSettings
 {
     public DockEdge Edge { get; set; } = DockEdge.Right;
     public FileOrder Order { get; set; } = FileOrder.Name;
+    public bool? SortDescending { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool EffectiveDescending => SortDescending ?? Order is FileOrder.Modified or FileOrder.Size;
+    public bool GenreIconsOnly { get; set; }
+    public int ClassificationVersion { get; set; }
     public string Monitor { get; set; } = "";
     public bool IncludePublicDesktop { get; set; } = true;
     public int CloseDelayMs { get; set; } = 500;
@@ -49,10 +58,25 @@ public sealed class AppSettings
         new() { Id = "documents", Name = "ドキュメント", Color = "#000000", Filter = ".pdf, .docx, .doc, .txt, .md, .xlsx, .xls, .csv, .pptx, .ppt, .rtf" },
         new() { Id = "media", Name = "メディア", Color = "#FFFFFF", Filter = ".mp4, .mov, .mkv, .avi, .mp3, .wav, .flac, .m4a" },
         new() { Id = "archives", Name = "アーカイブ", Color = "#000000", Filter = ".zip, .7z, .rar, .tar, .gz" },
+        new() { Id = "games", Name = "ゲーム", Color = "#FFFFFF", Filter = "<games>" },
         new() { Id = "shortcuts", Name = "ショートカット", Color = "#FFFFFF", Filter = ".lnk, .url" },
         new() { Id = "folders", Name = "フォルダー", Color = "#000000", Filter = "<folders>" },
         new() { Id = "other", Name = "その他", Color = "#FFFFFF", Filter = "*" }
     ];
+
+    public void Upgrade()
+    {
+        if (ClassificationVersion >= 1) return;
+        // Extend the old standard layout once. Never replace custom rules/colors,
+        // exceed the limit, or recreate a game genre the user later removed.
+        if (Stacks is { Count: < 16 } && !Stacks.Any(s => s.Tokens.Contains("<games>")))
+        {
+            int shortcuts = Stacks.FindIndex(s => s.Id == "shortcuts" && s.Tokens.Contains(".lnk") && s.Tokens.Contains(".url"));
+            if (shortcuts >= 0 && Stacks.All(s => s.Id != "games"))
+                Stacks.Insert(shortcuts, new() { Id = "games", Name = "ゲーム", Filter = "<games>", Color = "#FFFFFF" });
+        }
+        ClassificationVersion = 1;
+    }
 
     public void Validate()
     {
@@ -66,8 +90,9 @@ public sealed class AppSettings
         if (Stacks.Count(s => s.Tokens.Contains("*")) != 1) throw new InvalidDataException("未分類用の「*」を持つスタックを1つ残してください。");
         foreach (var stack in Stacks)
         {
-            if (stack.Tokens.Any(t => t != "*" && t != "<folders>" && (t.Contains('/') || t.Contains('\\') || t.TrimStart('*', '.').Length == 0 || t[1..].Contains('*') || t.Contains('?'))))
-                throw new InvalidDataException("分類には拡張子（.pdfなど）、<folders>、* を使ってください。");
+            if (!Enum.IsDefined(stack.Icon)) stack.Icon = GenreIcon.Auto;
+            if (stack.Tokens.Any(t => t != "*" && t != "<folders>" && t != "<games>" && (t.Contains('<') || t.Contains('>') || t.Contains('/') || t.Contains('\\') || t.TrimStart('*', '.').Length == 0 || t[1..].Contains('*') || t.Contains('?'))))
+                throw new InvalidDataException("分類には拡張子（.pdfなど）、<folders>、<games>、* を使ってください。");
             if (stack.Color is null || !System.Text.RegularExpressions.Regex.IsMatch(stack.Color, "^#[0-9A-Fa-f]{6}$")) throw new InvalidDataException("色は #RRGGBB 形式（例: #FFFFFF）で入力するか、色を選んでください。");
         }
         CloseDelayMs = Math.Clamp(CloseDelayMs, 200, 2000);

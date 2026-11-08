@@ -60,14 +60,15 @@ public sealed class FileCatalog(Func<AppSettings, IReadOnlyList<DesktopItem>> re
         catch { lock (gate) pending = null; throw; } // Keep the last good snapshot and allow retry.
     }
 
-    public static IReadOnlyList<DesktopItem> Order(IEnumerable<DesktopItem> items, FileOrder order)
+    public static IReadOnlyList<DesktopItem> Order(IEnumerable<DesktopItem> items, FileOrder order, bool? descending = null)
     {
+        bool reverse = descending ?? order is FileOrder.Modified or FileOrder.Size;
         var ordered = order switch
         {
-            FileOrder.Modified => items.OrderByDescending(x => x.Modified),
-            FileOrder.Type => items.OrderBy(x => x.Extension, StringComparer.CurrentCultureIgnoreCase),
-            FileOrder.Size => items.OrderByDescending(x => x.Size),
-            _ => items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
+            FileOrder.Modified => reverse ? items.OrderByDescending(x => x.Modified) : items.OrderBy(x => x.Modified),
+            FileOrder.Type => reverse ? items.OrderByDescending(x => x.Extension, StringComparer.CurrentCultureIgnoreCase) : items.OrderBy(x => x.Extension, StringComparer.CurrentCultureIgnoreCase),
+            FileOrder.Size => reverse ? items.OrderByDescending(x => x.Size) : items.OrderBy(x => x.Size),
+            _ => reverse ? items.OrderByDescending(x => x.Name, StringComparer.CurrentCultureIgnoreCase) : items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
         };
         return ordered.ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Path, StringComparer.OrdinalIgnoreCase).ToList();
     }

@@ -25,6 +25,9 @@ public partial class SettingsWindow : Window
         draft = JsonStore.Clone(App.Current.Settings); rules = new(draft.Stacks);
         InitializeComponent();
         RulesList.ItemsSource = rules;
+        GenreIconBox.ItemsSource = Enum.GetValues<GenreIcon>().Select((icon, i) => new IconChoice(icon, new[] { "自動（分類に合わせる）", "画像", "書類", "メディア", "アーカイブ", "ゲーム", "ショートカット", "フォルダー", "その他" }[i])).ToList();
+        IconOnlyBox.IsChecked = draft.GenreIconsOnly;
+        SortBox.SelectedIndex = (int)draft.Order; SortDirectionBox.SelectedIndex = draft.EffectiveDescending ? 1 : 0;
         SizeBox.ItemsSource = Enumerable.Range(9, 6).Select(i => new SizeChoice(i * 8, $"{i * 8} × {i * 8} DIP")).ToList();
         SizeBox.SelectedValue = draft.TileSize; OffsetBox.Value = draft.DockOffset;
         ReduceMotionBox.IsChecked = draft.ReduceMotion; FollowSystemBox.IsChecked = draft.FollowSystemAnimations;
@@ -49,7 +52,8 @@ public partial class SettingsWindow : Window
         if (loading || SelectedRule is not { } rule) return;
         loading = true;
         ColorBox.Text = rule.Color.ToUpperInvariant();
-        KindBox.SelectedIndex = rule.Tokens.Contains("*") ? 2 : rule.Filter.Trim() == "<folders>" ? 1 : 0;
+        KindBox.SelectedIndex = rule.Tokens.Contains("*") ? 2 : rule.Filter.Trim() == "<folders>" ? 1 : rule.Filter.Trim() == "<games>" ? 3 : 0;
+        GenreIconBox.SelectedValue = rule.Icon;
         KindBox.IsEnabled = !rule.Tokens.Contains("*");
         loading = false; UpdateEditor(); SaveError.Text = "";
     }
@@ -57,7 +61,8 @@ public partial class SettingsWindow : Window
     {
         bool fallback = SelectedRule?.Tokens.Contains("*") == true;
         FilterBox.Visibility = KindBox.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
-        FilterHint.Text = KindBox.SelectedIndex switch { 2 => "ほかのジャンルに当てはまらないファイルを表示します。このジャンルは1つ残します。", 1 => "デスクトップ直下のフォルダーを表示します。", _ => "例: .pdf, .docx, .txt  — 拡張子をカンマで区切ります。上のジャンルのルールを優先します。" };
+        FilterHint.Text = KindBox.SelectedIndex switch { 3 => "Steam・Epicなどのゲーム用ショートカットを、起動情報から判定します。ゲーム本体の検索・移動や起動はしません。上にあるルールが優先されます。", 2 => "ほかのジャンルに当てはまらないファイルを表示します。このジャンルは1つ残します。", 1 => "デスクトップ直下のフォルダーを表示します。", _ => "例: .pdf, .docx, .txt  — 拡張子をカンマで区切ります。上のジャンルのルールを優先します。" };
+        UpdateIconPreview();
         RemoveButton.IsEnabled = !fallback && rules.Count > 1;
         AddButton.IsEnabled = rules.Count < 16;
         UpButton.IsEnabled = RulesList.SelectedIndex > 0;
@@ -72,10 +77,10 @@ public partial class SettingsWindow : Window
         if (loading || SelectedRule is not { } rule) return;
         if (KindBox.SelectedIndex == 2 && rules.Any(r => r != rule && r.Tokens.Contains("*")))
         {
-            loading = true; KindBox.SelectedIndex = rule.Filter.Trim() == "<folders>" ? 1 : 0; loading = false;
+            loading = true; KindBox.SelectedIndex = rule.Filter.Trim() == "<folders>" ? 1 : rule.Filter.Trim() == "<games>" ? 3 : 0; loading = false;
             SaveError.Text = "未分類用のジャンルは既にあります。一覧からそのジャンルを選んで編集してください。"; return;
         }
-        rule.Filter = KindBox.SelectedIndex switch { 1 => "<folders>", 2 => "*", _ => ".txt" };
+        rule.Filter = KindBox.SelectedIndex switch { 1 => "<folders>", 2 => "*", 3 => "<games>", _ => ".txt" };
         UpdateEditor();
     }
     private void ColorEdited(object sender, TextChangedEventArgs e)
@@ -91,6 +96,21 @@ public partial class SettingsWindow : Window
         loading = true; ColorBox.Text = SelectedRule.Color; loading = false; UpdateEditor();
     }
     private void ChooseSwatch(object sender, RoutedEventArgs e) => SetSelectedColor((string)((Button)sender).Tag);
+    private sealed record IconChoice(GenreIcon Value, string Label);
+    private void IconAppearanceChanged(object sender, RoutedEventArgs e) { if (!loading) UpdateIconPreview(); }
+    private void GenreIconChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (loading || SelectedRule is not { } rule || GenreIconBox.SelectedValue is not GenreIcon icon) return;
+        rule.Icon = icon; UpdateIconPreview();
+    }
+    private void UpdateIconPreview()
+    {
+        if (SelectedRule is not { } rule) return;
+        bool only = IconOnlyBox.IsChecked == true;
+        foreach (var text in ((Grid)SquarePreview.Child).Children.OfType<TextBlock>()) text.Visibility = only ? Visibility.Collapsed : Visibility.Visible;
+        PreviewGenreIcon.Kind = DesktopEdgeWindow.GenreIconKey(rule);
+        PreviewGenreIcon.Visibility = only ? Visibility.Visible : Visibility.Collapsed;
+    }
     private void ChooseCustomColor(object sender, RoutedEventArgs e)
     {
         if (SelectedRule is null) return;
@@ -151,6 +171,8 @@ public partial class SettingsWindow : Window
         if (!Regex.IsMatch(ColorBox.Text, "^#[0-9A-Fa-f]{6}$")) { ColorBox.Focus(); throw new InvalidDataException("カラーコードを確認するか、色を選んでください。"); }
         draft.Edge = (DockEdge)EdgeBox.SelectedIndex; draft.Monitor = (string?)MonitorBox.SelectedValue ?? "";
         draft.IncludePublicDesktop = PublicBox.IsChecked == true;
+        draft.Order = (FileOrder)SortBox.SelectedIndex; draft.SortDescending = SortDirectionBox.SelectedIndex == 1;
+        draft.GenreIconsOnly = IconOnlyBox.IsChecked == true;
         draft.CloseDelayMs = int.Parse((string)((ComboBoxItem)DelayBox.SelectedItem).Tag);
         draft.Stacks = rules.ToList(); draft.TileSize = (int?)SizeBox.SelectedValue ?? 88; draft.DockOffset = OffsetBox.Value;
         draft.ReduceMotion = ReduceMotionBox.IsChecked == true; draft.FollowSystemAnimations = FollowSystemBox.IsChecked == true;

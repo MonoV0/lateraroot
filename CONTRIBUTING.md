@@ -16,6 +16,6 @@ For UI changes, check desktop/compact transitions, hover open/close, keyboard ac
 
 Describe the behavior changed and the checks performed. Avoid uploading personal desktop screenshots, settings, manifests, or file paths in issues.
 
-UI artwork is **Uicons by Flaticon**, under its separate license, not MIT. Keep the visible Settings credit and third-party notices. Do not commit the downloaded font or generated geometry, or redistribute either as an icon pack. The preparation script pins the official source revision and verifies its hashes; runtime uses only 13 compiled vectors.
+UI artwork is **Uicons by Flaticon**, under its separate license, not MIT. Keep the visible Settings credit and third-party notices. Do not commit the downloaded font or generated geometry, or redistribute either as an icon pack. The preparation script pins the official source revision and verifies its hashes; runtime uses only 21 compiled vectors.
 
 For updater changes, run the real portable-package upgrade and corrupt-package rejection checks in `.github/workflows/build.yml`. Keep the Velopack package ID `LaterarootApp` separate from `%LOCALAPPDATA%\Lateraroot\Data`. Do not add silent installation, telemetry or updates during a file operation. Never publish test-only future versions or feeds.

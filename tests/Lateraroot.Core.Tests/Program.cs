@@ -39,7 +39,8 @@ var tests = new List<(string Name, Action Run)>
             foreach (double offset in new[] { 0d, 0.5d, 1d })
             foreach (bool expanded in new[] { false, true })
             foreach (bool minimized in new[] { false, true })
-                Inside(DockLayout.Compact(area, edge, offset, scale, expanded, minimized), area);
+            foreach (int genres in new[] { 7, 8, 16 })
+                Inside(DockLayout.Compact(area, edge, offset, scale, expanded, minimized, genres), area);
             for (int index = 0; index < 16; index++) Inside(DockLayout.Flyout(area, edge, index, 16, scale, 824, 804), area);
         }
         static void Inside(DockRect rect, DockRect area) => True(rect.X >= area.X && rect.Y >= area.Y && rect.Right <= area.Right + 0.001 && rect.Bottom <= area.Bottom + 0.001 && rect.Width > 0 && rect.Height > 0);
@@ -71,6 +72,70 @@ var tests = new List<(string Name, Action Run)>
         settings.Stacks.Insert(0, new() { Id = "custom", Filter = "*.JPG, pdf", Name = "Custom" });
         Equal("custom", settings.Classify("photo.jpg", false).Id);
         Equal("custom", settings.Classify("book.pdf", false).Id);
+    }),
+    ("Game recognition uses launch metadata and avoids ordinary apps or websites", () =>
+    {
+        foreach (string target in new[] { "steam://rungameid/1234", "steam://run/4321", "com.epicgames.launcher://apps/Foo%3ABar?action=launch&silent=true", "uplay://launch/123/0", @"D:\SteamLibrary\steamapps\common\A Game\game.exe", @"C:\GOG Games\Example\game.exe" })
+            True(GameClassifier.IsGameTarget(target));
+        True(GameClassifier.IsGameTarget(@"C:\Steam\steam.exe", "-applaunch 12345 -windowed"));
+        True(GameClassifier.IsGameTarget(@"C:\GOG\GalaxyClient.exe", "/command=runGame /gameId=12345"));
+        True(GameClassifier.IsGameTarget(@"C:\Riot\RiotClientServices.exe", "--launch-product=valorant --launch-patchline=live"));
+        foreach (string target in new[] { "https://store.steampowered.com/app/123", "https://example.com/?next=steam://run/123", "steam://store/123", "steam://run/not-a-number", "com.epicgames.launcher://store/123?action=launch", "com.epicgames.launcher://apps/Game?notaction=launch", @"C:\Desktop\game.exe", @"C:\Steam\steam.exe", @"\\server\steamapps\common\x\game.exe" })
+            True(!GameClassifier.IsGameTarget(target));
+    }),
+    ("Game shortcut classification remains cached, priority-aware and survives storage", () =>
+    {
+        var (desktop, data) = Fixture("games");
+        string game = Path.Combine(desktop, "Game.url"), ordinary = Path.Combine(desktop, "Web.url");
+        File.WriteAllText(game, "[InternetShortcut]\nURL=steam://rungameid/12345\n");
+        File.WriteAllText(ordinary, "[InternetShortcut]\nURL=https://example.com/\n");
+        var settings = new AppSettings(); settings.Validate();
+        Equal("games", settings.Classify(game, false).Id); Equal("shortcuts", settings.Classify(ordinary, false).Id);
+        File.WriteAllText(game, "[InternetShortcut]\nURL=https://example.com/not-a-game-longer\n");
+        Equal("shortcuts", settings.Classify(game, false).Id);
+        File.WriteAllText(game, "[InternetShortcut]\nURL=steam://rungameid/123456\n");
+        settings.Stacks.Insert(0, new() { Id = "custom-url", Name = "URL", Filter = ".url" });
+        Equal("custom-url", settings.Classify(game, false).Id); settings.Stacks.RemoveAt(0);
+        var library = new DesktopLibrary(data, desktop);
+        Equal(1, library.Organize(library.Scan(settings).Where(i => i.StackId == "games")).Succeeded);
+        var stored = library.Scan(settings).Single(i => i.IsStored); Equal("games", stored.StackId);
+        Equal(1, library.Restore([stored.RecordId!]).Succeeded); True(File.Exists(game));
+    }),
+    ("Windows shell links are read from their real target and arguments without launching", () =>
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var (desktop, _) = Fixture("shell-games"); string path = Path.Combine(desktop, "Game.lnk");
+        dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+        dynamic shortcut = shell.CreateShortcut(path);
+        try
+        {
+            shortcut.TargetPath = Path.Combine(desktop, "steam.exe"); shortcut.Arguments = "-applaunch 12345"; shortcut.Save();
+            Equal("games", new AppSettings().Classify(path, false).Id);
+            shortcut.Arguments = ""; shortcut.Save();
+            Equal("shortcuts", new AppSettings().Classify(path, false).Id);
+        }
+        finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shortcut); System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell); }
+    }),
+    ("Game genre migration extends old defaults once without resetting custom settings", () =>
+    {
+        var settings = new AppSettings(); settings.Stacks.RemoveAll(r => r.Id == "games");
+        settings.Stacks[0].Name = "写真"; settings.Stacks[0].Color = "#123456";
+        settings.Upgrade(); settings.Upgrade();
+        Equal(1, settings.Stacks.Count(r => r.Tokens.Contains("<games>")));
+        True(settings.Stacks.FindIndex(r => r.Id == "games") < settings.Stacks.FindIndex(r => r.Id == "shortcuts"));
+        Equal("写真", settings.Stacks[0].Name); Equal("#123456", settings.Stacks[0].Color);
+        settings.Stacks.RemoveAll(r => r.Id == "games"); settings.Upgrade(); True(settings.Stacks.All(r => r.Id != "games"));
+        var custom = new AppSettings { Stacks = [new() { Id = "custom", Name = "Custom", Filter = "*" }] };
+        custom.Upgrade(); Equal(1, custom.Stacks.Count);
+    }),
+    ("Every sort key supports both directions and preserves old default directions", () =>
+    {
+        var items = new[] { new DesktopItem("/a", "a.txt", false, 10, DateTime.UnixEpoch, "x", null, false), new DesktopItem("/b", "b.zip", false, 20, DateTime.UnixEpoch.AddDays(1), "x", null, false) };
+        foreach (FileOrder order in Enum.GetValues<FileOrder>())
+        { Equal("a.txt", FileCatalog.Order(items, order, false)[0].Name); Equal("b.zip", FileCatalog.Order(items, order, true)[0].Name); }
+        Equal("b.zip", FileCatalog.Order(items, FileOrder.Modified)[0].Name); Equal("b.zip", FileCatalog.Order(items, FileOrder.Size)[0].Name);
+        var settings = new AppSettings { Order = FileOrder.Modified, GenreIconsOnly = true }; settings.Stacks[0].Icon = GenreIcon.Game;
+        var cloned = JsonStore.Clone(settings); True(cloned.EffectiveDescending && cloned.GenreIconsOnly); Equal(GenreIcon.Game, cloned.Stacks[0].Icon);
     }),
     ("Validation rejects missing fallback and duplicate IDs", () =>
     {

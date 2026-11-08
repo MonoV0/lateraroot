@@ -35,7 +35,7 @@ public sealed class DesktopLibrary
     {
         IEnumerable<DesktopItem> items = ReadFiles(settings);
         if (!string.IsNullOrWhiteSpace(query)) items = items.Where(x => x.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase));
-        return FileCatalog.Order(items, settings.Order);
+        return FileCatalog.Order(items, settings.Order, settings.SortDescending);
     }
 
     public IReadOnlyList<DesktopItem> ReadFiles(AppSettings settings)

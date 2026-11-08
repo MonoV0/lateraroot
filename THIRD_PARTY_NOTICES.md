@@ -2,7 +2,7 @@
 
 The application source code is licensed under the MIT License.
 
-**[Uicons by Flaticon](https://www.flaticon.com/uicons)** supplies the 13 Thin Rounded UI glyphs. These graphics are licensed separately under the **Flaticon License**, not MIT. Attribution is also visible in Settings. The upstream license is included unchanged in [Flaticon-LICENSE.txt](Flaticon-LICENSE.txt); see [current terms](https://www.flaticon.com/legal).
+**[Uicons by Flaticon](https://www.flaticon.com/uicons)** supplies the 21 Thin Rounded UI glyphs. These graphics are licensed separately under the **Flaticon License**, not MIT. Attribution is also visible in Settings. The upstream license is included unchanged in [Flaticon-LICENSE.txt](Flaticon-LICENSE.txt); see [current terms](https://www.flaticon.com/legal).
 
 The build preparation script fetches Thin Rounded 4.0.0 from the [official Flaticon CDN](https://cdn-uicons.flaticon.com/4.0.0/uicons-thin-rounded/css/uicons-thin-rounded.css) and verifies SHA256 hashes for the stylesheet and font. The included license text is preserved from the official Flaticon Uicons repository. Original font files and generated geometry sources are excluded from this repository. Only selected compiled UI artwork is included in the application; it is not offered as a standalone icon library and must not be extracted or redistributed as one. File-type icons continue to come from Windows Shell.
 

@@ -14,7 +14,8 @@ internal sealed class DesktopEdgeWindow : Window
     private readonly Canvas root = new() { Background = null };
     private readonly List<FrameworkElement> cells = [];
     private readonly WidgetActions actions;
-    private (string Id, string Name, string Color)[] appearance = [];
+    private (string Id, string Name, string Color, GenreIcon Icon)[] appearance = [];
+    private bool iconsOnly;
     private int labelSize;
     private Thumb? grip;
     internal bool CanDrag => grip?.IsEnabled == true;
@@ -37,13 +38,13 @@ internal sealed class DesktopEdgeWindow : Window
     }
     public void Update(IReadOnlyList<StackRule> rules, IReadOnlyDictionary<string, int> counts)
     {
-        var next = rules.Select(r => (r.Id, r.Name, r.Color)).ToArray();
-        if (appearance.SequenceEqual(next) && labelSize == App.Current.Settings.TileSize)
+        var next = rules.Select(r => (r.Id, r.Name, r.Color, r.Icon)).ToArray();
+        if (appearance.SequenceEqual(next) && labelSize == App.Current.Settings.TileSize && iconsOnly == App.Current.Settings.GenreIconsOnly)
         {
             for (int i = 0; i < rules.Count; i++) UpdateCount((Grid)((Button)cells[i]).Content, counts.GetValueOrDefault(rules[i].Id));
             UpdateDragLock(); return;
         }
-        appearance = next; labelSize = App.Current.Settings.TileSize;
+        appearance = next; labelSize = App.Current.Settings.TileSize; iconsOnly = App.Current.Settings.GenreIconsOnly;
         root.Children.Clear(); cells.Clear();
         for (int i = 0; i < rules.Count; i++)
         {
@@ -80,11 +81,36 @@ internal sealed class DesktopEdgeWindow : Window
     public static Grid GenreLabel(StackRule rule, int index, int count, bool compact = false)
     {
         var label = new Grid { Margin = new Thickness(compact ? 8 : 10) };
+        if (App.Current.Settings.GenreIconsOnly)
+        {
+            label.Children.Add(new UiIcon { Kind = GenreIconKey(rule), Width = compact ? 28 : 34, Height = compact ? 28 : 34 });
+            return label;
+        }
         label.Children.Add(new TextBlock { Text = (index + 1).ToString("00"), FontSize = 10, VerticalAlignment = VerticalAlignment.Top });
         label.Children.Add(new TextBlock { Text = WidgetVisuals.Balance(rule.Name, compact ? 50 : App.Current.Settings.TileSize - 20, compact ? 11 : 12), FontSize = compact ? 11 : 12, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = compact ? 13 : 16, LineStackingStrategy = LineStackingStrategy.BlockLineHeight, MaxHeight = compact ? 26 : 32, VerticalAlignment = VerticalAlignment.Center });
         var counter = new TextBlock { Text = count + "件", FontSize = 10, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Right };
         label.Children.Add(counter); label.Tag = counter;
         return label;
+    }
+    internal static string GenreIconKey(StackRule rule)
+    {
+        if (rule.Icon != GenreIcon.Auto) return rule.Icon + "Genre";
+        var tokens = rule.Tokens;
+        if (tokens.Contains("<games>")) return "GameGenre";
+        if (tokens.Contains("<folders>")) return "FolderGenre";
+        string known = rule.Id switch
+        {
+            "images" => "ImageGenre", "documents" => "DocumentGenre", "media" => "MediaGenre", "archives" => "ArchiveGenre",
+            "shortcuts" => "ShortcutGenre", _ => ""
+        };
+        if (known.Length > 0) return known;
+        var extensions = tokens.Select(t => t.TrimStart('*', '.')).ToArray();
+        bool Has(params string[] values) => extensions.Intersect(values).Any();
+        return Has("png", "jpg", "jpeg", "gif", "svg", "webp") ? "ImageGenre"
+            : Has("pdf", "txt", "docx", "md", "xlsx") ? "DocumentGenre"
+            : Has("mp3", "mp4", "wav", "mov", "mkv") ? "MediaGenre"
+            : Has("zip", "7z", "rar", "gz") ? "ArchiveGenre"
+            : Has("lnk", "url") ? "ShortcutGenre" : "OtherGenre";
     }
     public static void UpdateCount(Grid label, int count) { if (label.Tag is TextBlock text && text.Text != count + "件") text.Text = count + "件"; }
     public void Place()

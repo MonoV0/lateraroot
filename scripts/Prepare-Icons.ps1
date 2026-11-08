@@ -27,6 +27,8 @@ $icons = [ordered]@{
     ArrowOut='arrow-up-right'; ArrowIn='arrow-down-left'; CloseIcon='cross'; MinusIcon='minus'; GripIcon='grip-dots'
     SettingsIcon='settings'; HideIcon='eye-crossed'; SearchIcon='search'; ReloadIcon='refresh'
     LockIcon='lock'; AddIcon='plus'; UpIcon='arrow-small-up'; DownIcon='arrow-small-down'
+    ImageGenre='picture'; DocumentGenre='document'; MediaGenre='play-alt'; ArchiveGenre='box'
+    GameGenre='gamepad'; ShortcutGenre='link'; FolderGenre='folder'; OtherGenre='apps'
 }
 $culture = [Globalization.CultureInfo]::InvariantCulture
 $output = New-Object Text.StringBuilder

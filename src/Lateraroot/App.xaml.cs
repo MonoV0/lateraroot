@@ -43,7 +43,7 @@ public partial class App : Application
             if (!first) { MessageBox.Show("Lateraroot は起動済みです。通知領域のアイコンから開いてください。", "Lateraroot"); Shutdown(); return; }
             Directory.CreateDirectory(DataDirectory);
             string? warning = null;
-            try { Settings = JsonStore.Read(SettingsPath, () => new AppSettings()); Settings.Validate(); }
+            try { Settings = JsonStore.Read(SettingsPath, () => new AppSettings()); Settings.Validate(); Settings.Upgrade(); }
             catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or InvalidDataException or ArgumentException)
             {
                 var backup = SettingsPath + ".invalid-" + DateTime.Now.ToString("yyyyMMddHHmmss");

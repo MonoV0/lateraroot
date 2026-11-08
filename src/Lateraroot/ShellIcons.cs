@@ -14,7 +14,7 @@ internal static class ShellIcons
     public static ImageSource Get(string path, bool directory)
     {
         var extension = System.IO.Path.GetExtension(path);
-        var key = directory ? "<folder>" : extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase) || extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) || extension.Equals(".ico", StringComparison.OrdinalIgnoreCase) ? path : extension;
+        var key = directory ? "<folder>" : extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase) || extension.Equals(".url", StringComparison.OrdinalIgnoreCase) || extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) || extension.Equals(".ico", StringComparison.OrdinalIgnoreCase) ? path : extension;
         if (cache.TryGetValue(key, out var result)) return result;
         var info = new SHFILEINFO();
         // Use the extension for normal files: avoids touching cloud-only contents and network providers.

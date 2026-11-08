@@ -152,6 +152,7 @@
                                         <Grid Margin="14" TextElement.Foreground="{Binding SelectedItem.Color,ElementName=RulesList,Converter={StaticResource ColorInk}}">
                                             <TextBlock Text="PREVIEW" FontSize="9"/>
                                             <TextBlock x:Name="PreviewName" Text="{Binding SelectedItem.Name,ElementName=RulesList}" TextWrapping="Wrap" MaxHeight="40" VerticalAlignment="Center" FontSize="12"/>
+                                            <local:UiIcon x:Name="PreviewGenreIcon" Width="34" Height="34" Visibility="Collapsed" Foreground="{Binding SelectedItem.Color,ElementName=RulesList,Converter={StaticResource ColorInk}}"/>
                                             <TextBlock Text="00" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
                                         </Grid>
                                     </local:GlassSurface>
@@ -174,11 +175,15 @@
                                 </WrapPanel>
                                 <TextBlock x:Name="ColorError" Foreground="#A32626" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
                                 <TextBlock Text="白・黒を標準に、好きな色を選べます。文字色は自動で調整します。" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,16"/>
+                                <CheckBox x:Name="IconOnlyBox" Content="すべてのジャンルをアイコンだけで表示" Checked="IconAppearanceChanged" Unchecked="IconAppearanceChanged"/>
+                                <TextBlock Text="名前はホバーで確認できます。アイコンはジャンルごとに選べます。" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,0,0,8"/>
+                                <ComboBox x:Name="GenreIconBox" DisplayMemberPath="Label" SelectedValuePath="Value" SelectionChanged="GenreIconChanged" AutomationProperties.Name="ジャンルのアイコン" Margin="0,0,0,16"/>
                                 <TextBlock Text="このジャンルに表示するもの" Margin="0,0,0,8"/>
                                 <ComboBox x:Name="KindBox" SelectionChanged="KindChanged" AutomationProperties.Name="分類方法">
                                     <ComboBoxItem Content="拡張子を指定"/>
                                     <ComboBoxItem Content="フォルダー"/>
                                     <ComboBoxItem Content="その他 · 未分類のファイル"/>
+                                    <ComboBoxItem Content="ゲーム · ショートカットから自動判定"/>
                                 </ComboBox>
                                 <TextBox x:Name="FilterBox" Margin="0,10,0,0" Text="{Binding SelectedItem.Filter,ElementName=RulesList,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="拡張子の分類ルール"/>
                                 <TextBlock x:Name="FilterHint" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,8,0,0"/>
@@ -191,6 +196,12 @@
                 <Border Background="White" CornerRadius="20" Padding="28,20" Margin="0,18,0,0" TextElement.Foreground="{StaticResource Ink}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
+                            <Grid Margin="0,0,0,20">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,20,0"><TextBlock Text="ファイルの並び順" Margin="0,0,0,8"/><ComboBox x:Name="SortBox" AutomationProperties.Name="ファイルの並び順"><ComboBoxItem Content="名前"/><ComboBoxItem Content="更新日時"/><ComboBoxItem Content="種類"/><ComboBoxItem Content="サイズ"/></ComboBox></StackPanel>
+                                <StackPanel Grid.Column="1"><TextBlock Text="方向" Margin="0,0,0,8"/><ComboBox x:Name="SortDirectionBox" AutomationProperties.Name="並び順の方向"><ComboBoxItem Content="昇順"/><ComboBoxItem Content="降順"/></ComboBox></StackPanel>
+                                <TextBlock Grid.Column="2" Text="右クリックからも変更できます。ジャンルの並びは「ジャンルと色」の上下ボタンで変えます。" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Muted}" Margin="20,20,0,0"/>
+                            </Grid>
                             <Grid Margin="0,0,0,20">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="160"/>

@@ -11,10 +11,10 @@ public static class DockLayout
 {
     public static bool IsVertical(DockEdge edge) => edge is DockEdge.Left or DockEdge.Right;
 
-    public static DockRect Compact(DockRect area, DockEdge edge, double offset, double scale, bool expanded, bool minimized)
+    public static DockRect Compact(DockRect area, DockEdge edge, double offset, double scale, bool expanded, bool minimized, int genres = 7)
     {
         double rail = (minimized ? 28 : 68) * scale;
-        double length = Math.Min((minimized ? 112 : 620) * scale, IsVertical(edge) ? area.Height : area.Width);
+        double length = Math.Min((minimized ? 112 : Math.Max(620, Math.Clamp(genres, 1, 16) * 66 + 158)) * scale, IsVertical(edge) ? area.Height : area.Width);
         double depth = minimized || !expanded ? rail : 508 * scale;
         double width = Math.Min(area.Width, IsVertical(edge) ? depth : length);
         double height = Math.Min(area.Height, IsVertical(edge) ? length : depth);
