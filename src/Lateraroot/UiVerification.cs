@@ -57,6 +57,15 @@ public partial class MainWindow
                 }
             }
             Check(!expanded && Math.Abs(ActualWidth - 68) < 1, "Compact access remains available");
+            foreach (double scale in new[] { 1d, 1.5, 2 })
+            {
+                var icon = new UiIcon { Kind = "MinusIcon", OpticalWeight = ((UiIcon)RailMinimize.Content).OpticalWeight, Foreground = Brushes.Black, Width = 18, Height = 18 };
+                icon.Measure(new Size(18, 18)); icon.Arrange(new Rect(0, 0, 18, 18)); icon.UpdateLayout();
+                int side = (int)(18 * scale); var bitmap = new RenderTargetBitmap(side, side, 96 * scale, 96 * scale, PixelFormats.Pbgra32); bitmap.Render(icon);
+                var pixels = new byte[side * side * 4]; bitmap.CopyPixels(pixels, side * 4, 0);
+                int visible = Enumerable.Range(0, side * side).Count(i => pixels[i * 4 + 3] >= 128);
+                Check(visible >= 12 * scale, $"Minimize mark retains visible pixels at {scale * 100}% DPI");
+            }
             Check(DragHandle.ActualHeight == 66 && RailHeader.Children.Count == 1 && DragHandle.Template.FindName("Glyph", DragHandle) is UiIcon { Kind: "GripIcon" }, "Compact header is one glass drag control with an actual Flaticon grip");
             int docs = Host.Settings.Stacks.FindIndex(x => x.Id == "documents");
             ((Button)StackRail.Children[docs]).RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseEnterEvent });

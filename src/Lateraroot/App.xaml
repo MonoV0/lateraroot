@@ -47,6 +47,28 @@
             </Setter>
         </Style>
         <local:StateLayerConverter x:Key="StateLayer"/>
+        <Style x:Key="RailAction" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="6"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid Background="Transparent">
+                            <Border x:Name="HoverInk" Margin="7,2" CornerRadius="8" Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False"/>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Border x:Name="FocusRing" Margin="7,2" CornerRadius="8" BorderThickness="1" BorderBrush="Transparent" IsHitTestVisible="False"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="FocusRing" Property="BorderBrush" Value="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="FocusRing" Property="BorderBrush" Value="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.35"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <ControlTemplate x:Key="DockHeaderTemplate" TargetType="Thumb">
             <Grid Background="Transparent">
                 <local:GlassSurface Background="White" CornerRadius="16"/>

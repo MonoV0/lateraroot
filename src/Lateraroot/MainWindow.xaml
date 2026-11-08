@@ -144,12 +144,12 @@
                         <Thumb x:Name="DragHandle" Height="66" Cursor="SizeAll" local:WidgetMotion.Hover="True" Template="{StaticResource DockHeaderTemplate}" DragStarted="DockDragStarted" DragDelta="DockDragDelta" DragCompleted="DockDragCompleted" ToolTip="ドラッグして配置" AutomationProperties.Name="ウィジェットの移動ハンドル"/>
                     </StackPanel>
                     <StackPanel x:Name="RailActions" DockPanel.Dock="Bottom">
-                        <Button ToolTip="設定" AutomationProperties.Name="設定" Height="30" BorderThickness="0" Padding="6" Click="ShowSettings"><local:UiIcon Kind="SettingsIcon" Width="18" Height="18"/></Button>
-                        <Button ToolTip="最小化" AutomationProperties.Name="最小化" Height="30" BorderThickness="0" Padding="6" Click="MinimizeDock">
-                            <Path Data="{StaticResource MinusIcon}" Width="16" Height="16" Stretch="Uniform" Fill="#202020"/>
+                        <Button x:Name="RailSettings" Style="{StaticResource RailAction}" ToolTip="設定" AutomationProperties.Name="設定" Click="ShowSettings"><local:UiIcon Kind="SettingsIcon" Width="18" Height="18"/></Button>
+                        <Button x:Name="RailMinimize" Style="{StaticResource RailAction}" ToolTip="最小化" AutomationProperties.Name="最小化" Click="MinimizeDock">
+                            <local:UiIcon Kind="MinusIcon" Width="18" Height="18" OpticalWeight="0.75"/>
                         </Button>
-                        <Button ToolTip="非表示" AutomationProperties.Name="非表示" Height="30" BorderThickness="0" Padding="6" Click="HideDock">
-                            <Path Data="{StaticResource HideIcon}" Width="18" Height="18" Stretch="Uniform" Fill="#202020"/>
+                        <Button x:Name="RailHide" Style="{StaticResource RailAction}" ToolTip="非表示" AutomationProperties.Name="非表示" Click="HideDock">
+                            <local:UiIcon Kind="HideIcon" Width="18" Height="18"/>
                         </Button>
                     </StackPanel>
                     <ScrollViewer x:Name="RailScroll" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Hidden" PreviewMouseWheel="RailMouseWheel">
@@ -167,7 +167,7 @@
                     <ColumnDefinition x:Name="MiniSecondCol" Width="0"/>
                 </Grid.ColumnDefinitions>
                 <Thumb x:Name="MiniDragHandle" Cursor="SizeAll" local:WidgetMotion.Hover="True" Template="{StaticResource CompactGripTemplate}" DragStarted="DockDragStarted" DragDelta="DockDragDelta" DragCompleted="DockDragCompleted" AutomationProperties.Name="最小化タブの移動ハンドル"/>
-                <Button x:Name="MiniRestore" Grid.Row="1" ToolTip="Lateraroot を戻す" AutomationProperties.Name="Lateraroot を戻す" BorderThickness="0" Padding="0" Click="RestoreDockClick">
+                <Button x:Name="MiniRestore" Style="{StaticResource RailAction}" Height="Auto" Grid.Row="1" ToolTip="Lateraroot を戻す" AutomationProperties.Name="Lateraroot を戻す" Click="RestoreDockClick">
                     <Path Data="{StaticResource ArrowOut}" Width="16" Height="16" Stretch="Uniform" Fill="#202020"/>
                 </Button>
             </Grid>
