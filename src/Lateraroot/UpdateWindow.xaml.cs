@@ -25,6 +25,7 @@ public partial class UpdateWindow : Window
     {
         this.session = session; this.saveDraft = saveDraft;
         InitializeComponent(); session.Changed += Changed;
+        GlassSurface.SetReduced(this, App.Current.Settings.ReduceTransparency || SystemParameters.HighContrast);
         Loaded += async (_, _) => { Render(); if (session.Snapshot.Stage is UpdateStage.Idle or UpdateStage.Failed) await session.CheckAsync(); };
         Closing += (_, e) => { if (session.Snapshot.Stage == UpdateStage.Applying) e.Cancel = true; else download?.Cancel(); };
         Closed += (_, _) => { session.Changed -= Changed; download?.Dispose(); };

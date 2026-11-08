@@ -4,12 +4,16 @@ public enum DockEdge { Right, Left, Top, Bottom }
 public enum DockVisibility { Visible, Minimized, Hidden }
 public enum FileOrder { Name, Modified, Type, Size }
 
-public sealed class StackRule
+public sealed class StackRule : System.ComponentModel.INotifyPropertyChanged
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
-    public string Name { get; set; } = "新しいスタック";
-    public string Color { get; set; } = "#A7B8FF";
-    public string Filter { get; set; } = ".txt";
+    private string name = "新しいジャンル", color = "#FFFFFF", filter = ".txt";
+    public string Name { get => name; set => Set(ref name, value); }
+    public string Color { get => color; set => Set(ref color, value); }
+    public string Filter { get => filter; set => Set(ref filter, value); }
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    private void Set(ref string field, string value, [System.Runtime.CompilerServices.CallerMemberName] string? property = null)
+    { if (field == value) return; field = value; PropertyChanged?.Invoke(this, new(property)); }
 
     [System.Text.Json.Serialization.JsonIgnore]
     public string[] Tokens => Filter.Split([',', ';', ' ', '、'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
@@ -33,18 +37,19 @@ public sealed class AppSettings
     public DockVisibility Visibility { get; set; } = DockVisibility.Visible;
     public int TileSize { get; set; } = 88;
     public bool ReduceMotion { get; set; }
+    public bool ReduceTransparency { get; set; }
     public bool CheckForUpdates { get; set; } = true;
     public List<StackRule> Stacks { get; set; } = Defaults();
 
     public static List<StackRule> Defaults() =>
     [
-        new() { Id = "images", Name = "画像", Color = "#F88790", Filter = ".png, .jpg, .jpeg, .gif, .webp, .svg, .bmp, .heic, .ico" },
-        new() { Id = "documents", Name = "ドキュメント", Color = "#F6DE78", Filter = ".pdf, .docx, .doc, .txt, .md, .xlsx, .xls, .csv, .pptx, .ppt, .rtf" },
-        new() { Id = "media", Name = "メディア", Color = "#A2CB81", Filter = ".mp4, .mov, .mkv, .avi, .mp3, .wav, .flac, .m4a" },
-        new() { Id = "archives", Name = "アーカイブ", Color = "#8EA8D3", Filter = ".zip, .7z, .rar, .tar, .gz" },
-        new() { Id = "shortcuts", Name = "ショートカット", Color = "#AA90C5", Filter = ".lnk, .url" },
-        new() { Id = "folders", Name = "フォルダー", Color = "#CE90C7", Filter = "<folders>" },
-        new() { Id = "other", Name = "その他", Color = "#BBBBBB", Filter = "*" }
+        new() { Id = "images", Name = "画像", Color = "#FFFFFF", Filter = ".png, .jpg, .jpeg, .gif, .webp, .svg, .bmp, .heic, .ico" },
+        new() { Id = "documents", Name = "ドキュメント", Color = "#000000", Filter = ".pdf, .docx, .doc, .txt, .md, .xlsx, .xls, .csv, .pptx, .ppt, .rtf" },
+        new() { Id = "media", Name = "メディア", Color = "#FFFFFF", Filter = ".mp4, .mov, .mkv, .avi, .mp3, .wav, .flac, .m4a" },
+        new() { Id = "archives", Name = "アーカイブ", Color = "#000000", Filter = ".zip, .7z, .rar, .tar, .gz" },
+        new() { Id = "shortcuts", Name = "ショートカット", Color = "#FFFFFF", Filter = ".lnk, .url" },
+        new() { Id = "folders", Name = "フォルダー", Color = "#000000", Filter = "<folders>" },
+        new() { Id = "other", Name = "その他", Color = "#FFFFFF", Filter = "*" }
     ];
 
     public void Validate()
@@ -61,7 +66,7 @@ public sealed class AppSettings
         {
             if (stack.Tokens.Any(t => t != "*" && t != "<folders>" && (t.Contains('/') || t.Contains('\\') || t.TrimStart('*', '.').Length == 0 || t[1..].Contains('*') || t.Contains('?'))))
                 throw new InvalidDataException("分類には拡張子（.pdfなど）、<folders>、* を使ってください。");
-            if (stack.Color is null || !System.Text.RegularExpressions.Regex.IsMatch(stack.Color, "^#[0-9A-Fa-f]{6}$")) throw new InvalidDataException("色は #RRGGBB 形式（例: #F88790）で入力してください。");
+            if (stack.Color is null || !System.Text.RegularExpressions.Regex.IsMatch(stack.Color, "^#[0-9A-Fa-f]{6}$")) throw new InvalidDataException("色は #RRGGBB 形式（例: #FFFFFF）で入力するか、色を選んでください。");
         }
         CloseDelayMs = Math.Clamp(CloseDelayMs, 200, 2000);
     }

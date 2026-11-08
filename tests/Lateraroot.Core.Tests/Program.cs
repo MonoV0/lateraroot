@@ -4,6 +4,16 @@ var root = Path.Combine(Path.GetTempPath(), "lateraroot-tests-" + Guid.NewGuid()
 Directory.CreateDirectory(root);
 var tests = new List<(string Name, Action Run)>
 {
+    ("Monochrome defaults and user-defined genre, color and transparency settings persist", () =>
+    {
+        var settings = new AppSettings();
+        True(settings.Stacks.Select(s => s.Color).Distinct().Order().SequenceEqual(new[] { "#000000", "#FFFFFF" }));
+        Equal("#FFFFFF", new StackRule().Color);
+        settings.Stacks[0].Name = "好きなジャンル"; settings.Stacks[0].Color = "#123456"; settings.ReduceTransparency = true;
+        var copy = JsonStore.Clone(settings); copy.Validate();
+        Equal("好きなジャンル", copy.Stacks[0].Name); Equal("#123456", copy.Stacks[0].Color); True(copy.ReduceTransparency);
+        copy.Stacks[0].Color = "#FFFFFF"; Equal("#123456", settings.Stacks[0].Color);
+    }),
     ("Widget cells remain square, contained and disjoint at every edge and scale", () =>
     {
         foreach (var area in new[] { new DockRect(0, 0, 2560, 1392), new DockRect(-1920, 0, 1920, 1040), new DockRect(0, -1200, 800, 1200) })

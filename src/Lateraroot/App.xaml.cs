@@ -53,6 +53,7 @@ public partial class App : Application
             if (IsSandbox && e.Args.Contains("--demo")) CreateDemo();
             Library = new DesktopLibrary(DataDirectory, DesktopDirectory, IsSandbox ? null : Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory));
             Trace("Library initialized");
+            SystemParameters.StaticPropertyChanged += AppearanceChanged;
             if (updateVerification) { Dispatcher.BeginInvoke(async () => await UpdateVerification.RunAsync(e.Args)); return; }
             var window = new MainWindow();
             Trace("Window constructed");
@@ -85,5 +86,15 @@ public partial class App : Application
         void Write(string name, string text) { var path = Path.Combine(DesktopDirectory, name); if (!File.Exists(path)) File.WriteAllText(path, text); }
     }
 
-    protected override void OnExit(ExitEventArgs e) { instance?.Dispose(); base.OnExit(e); }
+    private void AppearanceChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(SystemParameters.HighContrast)) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            foreach (Window window in Windows)
+                if (window is SettingsWindow settings) settings.ApplyTransparency();
+                else GlassSurface.SetReduced(window, Settings.ReduceTransparency || SystemParameters.HighContrast);
+        });
+    }
+    protected override void OnExit(ExitEventArgs e) { SystemParameters.StaticPropertyChanged -= AppearanceChanged; instance?.Dispose(); base.OnExit(e); }
 }

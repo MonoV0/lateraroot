@@ -38,7 +38,7 @@ internal sealed class DesktopEdgeWindow : Window
         {
             var rule = rules[i];
             var label = GenreLabel(rule, i, counts.GetValueOrDefault(rule.Id));
-            var button = new Button { Content = label, Tag = rule.Id, Background = ColorBrush(rule.Color, .12), Padding = new Thickness(0), BorderThickness = new Thickness(0), Style = (Style)App.Current.FindResource("SquareButton"), ToolTip = rule.Name + " — クリックまたはホバーで開く" };
+            var button = new Button { Content = label, Tag = rule.Id, Background = ColorBrush(rule.Color), Padding = new Thickness(0), BorderThickness = new Thickness(0), Style = (Style)App.Current.FindResource("SquareButton"), ToolTip = rule.Name + " — クリックまたはホバーで開く" };
             button.Foreground = WidgetVisuals.Ink(button.Background);
             System.Windows.Automation.AutomationProperties.SetName(button, rule.Name + " ウィジェット");
             button.MouseEnter += (_, _) => select(rule.Id); button.Click += (_, _) => select(rule.Id);
@@ -49,7 +49,8 @@ internal sealed class DesktopEdgeWindow : Window
             button.ContextMenu = menu;
             root.Children.Add(button); cells.Add(button);
         }
-        var utility = new Grid { Background = Brushes.White };
+        var utility = new Grid { Background = Brushes.Transparent };
+        utility.Children.Add(new GlassSurface { Background = Brushes.White, IsHitTestVisible = false });
         var grip = new Thumb { Height = 22, VerticalAlignment = VerticalAlignment.Top, Cursor = System.Windows.Input.Cursors.SizeAll, ToolTip = "ドラッグで配置を編集" };
         var template = new ControlTemplate(typeof(Thumb));
         var border = new FrameworkElementFactory(typeof(Border)); border.SetValue(Border.BackgroundProperty, Brushes.Transparent);
@@ -59,7 +60,7 @@ internal sealed class DesktopEdgeWindow : Window
         var utilityLabel = new Grid { Margin = new Thickness(8) };
         utilityLabel.Children.Add(new TextBlock { Text = "lr.", FontSize = 20, VerticalAlignment = VerticalAlignment.Top });
         utilityLabel.Children.Add(new TextBlock { Text = "設定", FontSize = 10, VerticalAlignment = VerticalAlignment.Bottom });
-        var more = new Button { Content = utilityLabel, Margin = new Thickness(0, 22, 0, 0), Padding = new Thickness(0), BorderThickness = new Thickness(0), ToolTip = "ウィジェット設定", Style = (Style)App.Current.FindResource("SquareButton") };
+        var more = new Button { Content = utilityLabel, Background = Brushes.Transparent, Margin = new Thickness(0, 22, 0, 0), Padding = new Thickness(0), BorderThickness = new Thickness(0), ToolTip = "ウィジェット設定", Style = (Style)App.Current.FindResource("SquareButton") };
         more.Click += (_, _) => settings();
         var controls = new ContextMenu(); Add(controls, "ウィジェット設定", settings); Add(controls, "検索・整理", inspector); Add(controls, "最小化", minimize); Add(controls, "非表示", hide);
         utility.ContextMenu = controls; utility.Children.Add(more); utility.Children.Add(grip);
@@ -89,10 +90,10 @@ internal sealed class DesktopEdgeWindow : Window
         }
         WindowPlacement.Place(this, bounds, scale);
     }
-    public static Brush ColorBrush(string color, double white = 0)
+    public static Brush ColorBrush(string color)
     {
         var c = (Color)ColorConverter.ConvertFromString(color);
-        var brush = new SolidColorBrush(Color.FromRgb((byte)(c.R + (255 - c.R) * white), (byte)(c.G + (255 - c.G) * white), (byte)(c.B + (255 - c.B) * white)));
+        var brush = new SolidColorBrush(c);
         brush.Freeze(); return brush;
     }
 }

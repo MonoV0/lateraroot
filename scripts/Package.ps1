@@ -1,10 +1,11 @@
 param(
     [Parameter(Mandatory)][string]$PublishDirectory,
     [Parameter(Mandatory)][string]$OutputDirectory,
-    [string]$Version = '0.4.0',
+    [string]$Version = '',
     [string]$Vpk = 'vpk'
 )
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($Version)) { $Version = ([xml](Get-Content (Join-Path $PSScriptRoot '../src/Lateraroot/Lateraroot.csproj'))).Project.PropertyGroup.Version }
 # Distinct from %LOCALAPPDATA%\Lateraroot\Data: updater cleanup must never own the user's Vault.
 & $Vpk pack --packId LaterarootApp --packTitle Lateraroot --packAuthors MonoV0 --packVersion $Version --packDir $PublishDirectory --mainExe Lateraroot.exe --outputDir $OutputDirectory --runtime win-x64 --releaseNotes (Join-Path $PSScriptRoot '../docs/RELEASE_NOTES.md') --noInst --delta None --yes --skip-updates
 if ($LASTEXITCODE -ne 0) { throw 'Velopack packaging failed' }

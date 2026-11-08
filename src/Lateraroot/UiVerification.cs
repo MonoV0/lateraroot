@@ -28,6 +28,25 @@ public partial class MainWindow
             await Settled();
             var face = new Typeface(FontFamily, FontStyle, FontWeight, FontStretch);
             Check(face.TryGetGlyphTypeface(out var glyph) && glyph.FontUri.ToString().Contains("ZenKakuGothicNew-Medium.ttf", StringComparison.OrdinalIgnoreCase), "Bundled Medium font resolves");
+            Check(Host.Settings.Stacks.All(s => s.Color is "#FFFFFF" or "#000000"), "New installations start with white and black genres");
+            var clearGlass = GlassProbe("#FFFFFF", false);
+            Check(SystemParameters.HighContrast || Pixel(clearGlass, 44, 44)[3] is > 0 and < 255, "Glass surface really transmits the backdrop");
+            Check(Pixel(clearGlass, 0, 0)[3] == 0 && Pixel(GlassProbe("#FFFFFF", true), 44, 44)[3] == 255, "Rounded glass leaves empty pixels transparent and reduced transparency is opaque");
+            if (!SystemParameters.HighContrast)
+            foreach (string tint in new[] { "#FFFFFF", "#000000", "#123456", "#777777", "#707070", "#A8BEDF", "#B4C6B2", "#D4BEDD", "#E0B9B8", "#FFFF00" })
+            {
+                var probe = GlassProbe(tint, false);
+                bool blackInk = WidgetVisuals.Ink(DesktopEdgeWindow.ColorBrush(tint)) == Brushes.Black;
+                foreach (int y in new[] { 16, 44, 70 })
+                foreach (int backdrop in new[] { 0, 255 })
+                {
+                    byte[] p = Pixel(probe, 44, y);
+                    byte Composite(int c) => (byte)Math.Clamp(c + backdrop * (255 - p[3]) / 255d, 0, 255);
+                    double luminance = WidgetVisuals.Luminance(Color.FromRgb(Composite(p[2]), Composite(p[1]), Composite(p[0])));
+                    double contrast = blackInk ? (luminance + .05) / .05 : 1.05 / (luminance + .05);
+                    Check(contrast >= 4.5, $"Glass text contrast {tint}, y={y}, backdrop={backdrop}");
+                }
+            }
             Check(!expanded && Math.Abs(ActualWidth - 68) < 1, "Compact access remains available");
             int docs = Host.Settings.Stacks.FindIndex(x => x.Id == "documents");
             ((Button)StackRail.Children[docs]).RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseEnterEvent });
@@ -99,9 +118,38 @@ public partial class MainWindow
                 Host.Settings.Edge = edge; Host.Settings.DockOffset = offset; ApplyPresentation(); await Settled(); CheckBounds(this, edge, true);
             }
             Host.Settings.Edge = DockEdge.Right; Host.Settings.DockOffset = .5; BuildRail(); ApplyPresentation();
+            var priorSettings = JsonStore.Clone(Host.Settings);
             var settings = new SettingsWindow(); settings.Show(); await Settled();
             Check(settings.IsVisible && settings.FontFamily.Source.Contains("Zen Kaku Gothic New"), "The widget editor uses the same type system");
-            Capture(settings, "settings.png"); settings.Close();
+            Check(Descendants<TabItem>(settings).All(t => t.ActualHeight >= 38), "Settings tab labels fit without clipping");
+            Check(settings.ResetPaletteButton.TransformToAncestor(settings.GenreScroll).Transform(new Point(settings.ResetPaletteButton.ActualWidth, 0)).X <= settings.GenreScroll.ViewportWidth + 1, "Monochrome reset stays inside the editor viewport");
+            Check(Descendants<TextBlock>(settings).First(t => t.Text == "ジャンル名").Foreground is SolidColorBrush labelInk && labelInk.Color.R < 100, "Selected tab does not turn editor labels white");
+            settings.NameBox.Text = "制作資料"; settings.FilterBox.Text = ".blend, .psd";
+            ((Button)settings.PalettePanel.Children[2]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Settled();
+            Check(settings.SelectedRule?.Color == "#A8BEDF" && Descendants<Border>((Button)settings.PalettePanel.Children[2]).Any(b => b.Background is SolidColorBrush c && c.Color == (Color)ColorConverter.ConvertFromString("#A8BEDF")), "Palette buttons visibly show their color and update the preview");
+            settings.ColorBox.Text = "#12";
+            Check(!settings.SaveButton.IsEnabled && settings.ColorError.Text.Length > 0 && settings.SelectedRule?.Color == "#A8BEDF", "Invalid color input has inline feedback and cannot overwrite the selected color");
+            settings.ColorBox.Text = "#123456"; await Settled();
+            Check(settings.SaveButton.IsEnabled && settings.SquarePreview.Background is SolidColorBrush custom && custom.Color == (Color)ColorConverter.ConvertFromString("#123456"), "Arbitrary HEX colors update the real glass preview");
+            Check(Host.Settings.Stacks[0].Name == priorSettings.Stacks[0].Name && Host.Settings.Stacks[0].Color == priorSettings.Stacks[0].Color, "Editing a genre is isolated until saved");
+            Capture(settings, "settings-custom.png");
+            settings.AddGenre(); settings.NameBox.Text = "素材フォルダー"; settings.KindBox.SelectedIndex = 1; await Settled();
+            Check(settings.SelectedRule?.Name == "素材フォルダー" && settings.SelectedRule.Filter == "<folders>", "Adding a genre and choosing folders uses plain controls");
+            string addedId = settings.SelectedRule!.Id; int originalIndex = settings.RulesList.SelectedIndex; settings.Move(-1);
+            Check(settings.SelectedRule?.Id == addedId && settings.RulesList.SelectedIndex == originalIndex - 1, "Genre priority moves with the selected entry");
+            Check(settings.RemoveSelectedGenre(), "Custom genres can be removed before saving");
+            settings.RulesList.SelectedItem = settings.RulesList.Items.Cast<StackRule>().First(r => r.Tokens.Contains("*"));
+            Check(!settings.RemoveSelectedGenre() && !settings.RemoveButton.IsEnabled && !settings.KindBox.IsEnabled, "The required fallback genre is protected while its name and color remain editable");
+            settings.RulesList.SelectedIndex = 0; settings.TransparencyBox.IsChecked = true;
+            Check(GlassSurface.GetReduced(settings), "Reduced transparency updates the preview through the shared material policy");
+            settings.SaveDraft();
+            var savedGenres = JsonStore.Read(Host.SettingsPath, () => new AppSettings());
+            Check(savedGenres.Stacks[0].Name == "制作資料" && savedGenres.Stacks[0].Color == "#123456" && savedGenres.Stacks[0].Filter == ".blend, .psd" && savedGenres.ReduceTransparency, "Genre, arbitrary color, filter and transparency are saved together");
+            settings.ResetColors();
+            Check(settings.RulesList.Items.Cast<StackRule>().All(r => r.Color is "#FFFFFF" or "#000000") && settings.SelectedRule?.Name == "制作資料" && settings.SelectedRule.Filter == ".blend, .psd", "Monochrome reset preserves user genre names and classification rules");
+            Check(Host.Settings.Stacks[0].Color == "#123456", "Subsequent draft edits do not mutate already-saved application settings");
+            settings.Close(); Host.Settings = priorSettings; JsonStore.Write(Host.SettingsPath, priorSettings);
+            var cleanSettings = new SettingsWindow(); cleanSettings.Show(); await Settled(); Capture(cleanSettings, "settings.png"); cleanSettings.Close();
             var updateProvider = new UiUpdateProvider(); var updateSession = new UpdateSession(updateProvider);
             var updateDialog = new UpdateWindow(updateSession, null); updateDialog.Show(); await Settled();
             Check(updateSession.Snapshot.Stage == UpdateStage.Available && updateDialog.UpdateAction.IsEnabled && (string)updateDialog.UpdateAction.Content == "ダウンロード", "Update dialog shows available release and explicit download");
@@ -172,13 +220,26 @@ public partial class MainWindow
             using var stream = File.Create(Path.Combine(output, name)); encoder.Save(stream);
         }
         void Capture(Window window, string name) => Write(Render(window), name);
+        static byte[] Pixel(BitmapSource bitmap, int x, int y) { var pixel = new byte[4]; bitmap.CopyPixels(new Int32Rect(x, y, 1, 1), pixel, 4, 0); return pixel; }
+        static BitmapSource GlassProbe(string color, bool reduced)
+        {
+            var surface = new GlassSurface { Width = 88, Height = 88, Background = DesktopEdgeWindow.ColorBrush(color) };
+            GlassSurface.SetReduced(surface, reduced); surface.Measure(new Size(88, 88)); surface.Arrange(new Rect(0, 0, 88, 88)); surface.UpdateLayout();
+            var bitmap = new RenderTargetBitmap(88, 88, 96, 96, PixelFormats.Pbgra32); bitmap.Render(surface); return bitmap;
+        }
+        static void DrawBackdrop(DrawingContext dc, Rect area)
+        {
+            dc.DrawRectangle(new LinearGradientBrush(Color.FromRgb(211, 215, 220), Color.FromRgb(242, 241, 238), 35), null, area);
+            dc.DrawEllipse(new RadialGradientBrush(Color.FromArgb(180, 255, 255, 255), Colors.Transparent), null, new Point(area.Width * .85, area.Height * .25), area.Width * .48, area.Height * .8);
+            dc.DrawEllipse(new RadialGradientBrush(Color.FromArgb(65, 106, 113, 124), Colors.Transparent), null, new Point(area.Width * .88, area.Height * .9), area.Width * .5, area.Height * .7);
+        }
         void CaptureDesktop(string name)
         {
             var area = WindowPlacement.Area(WindowPlacement.Screen);
             var canvas = new DrawingVisual();
             using (var dc = canvas.RenderOpen())
             {
-                dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, area.Width, area.Height));
+                DrawBackdrop(dc, new Rect(0, 0, area.Width, area.Height));
                 foreach (var window in new Window[] { desktopEdge, this })
                 {
                     if (!window.IsVisible) continue;
@@ -208,7 +269,7 @@ public partial class MainWindow
                 var visual = new DrawingVisual();
                 using (var dc = visual.RenderOpen())
                 {
-                    dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
+                    DrawBackdrop(dc, new Rect(0, 0, width, height));
                     foreach (var window in new Window[] { desktopEdge, this })
                     {
                         if (!window.IsVisible) continue;

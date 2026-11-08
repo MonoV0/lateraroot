@@ -99,6 +99,8 @@ public partial class MainWindow : Window
         if (!ready) return;
         CancelTransition();
         WidgetMotion.SetEnabled(this, WidgetMotion.Allowed);
+        GlassSurface.SetReduced(this, Host.Settings.ReduceTransparency || SystemParameters.HighContrast);
+        GlassSurface.SetReduced(desktopEdge, Host.Settings.ReduceTransparency || SystemParameters.HighContrast);
         Topmost = !desktopMode;
         var visibility = Host.Settings.Visibility;
         if (visibility == DockVisibility.Hidden) { FileItems.ItemsSource = null; visibleTiles = []; Panel.Visibility = Visibility.Collapsed; desktopEdge.Hide(); Hide(); return; }
@@ -171,7 +173,7 @@ public partial class MainWindow : Window
         foreach (var stack in Host.Settings.Stacks)
         {
             var label = DesktopEdgeWindow.GenreLabel(stack, index++, counts.GetValueOrDefault(stack.Id), true);
-            var button = new Button { Content = label, Width = 66, Height = 66, Padding = new Thickness(0), BorderThickness = new Thickness(0), Background = DesktopEdgeWindow.ColorBrush(stack.Color, .55), ToolTip = stack.Name, Style = (Style)FindResource("SquareButton") };
+            var button = new Button { Content = label, Width = 66, Height = 66, Padding = new Thickness(0), BorderThickness = new Thickness(0), Background = DesktopEdgeWindow.ColorBrush(stack.Color), ToolTip = stack.Name, Style = (Style)FindResource("SquareButton") };
             button.Foreground = WidgetVisuals.Ink(button.Background);
             System.Windows.Automation.AutomationProperties.SetName(button, stack.Name + " ウィジェット");
             button.MouseEnter += (_, _) => { if (!dragging) SelectStack(stack.Id); };
@@ -210,7 +212,7 @@ public partial class MainWindow : Window
         tileColumns = widget ? Math.Min(DesktopColumns, Math.Max(1, filteredCount)) : Math.Max(1, (int)((Width - (desktopMode ? 0 : DockLayout.IsVertical(Host.Settings.Edge) ? 68 : 0) - 50) / TileSide));
         IEnumerable<DesktopItem> filtered = items.Where(x => x.Name.Contains(SearchBox.Text, StringComparison.CurrentCultureIgnoreCase));
         if (widget && !showAll) filtered = filtered.Take(tileColumns);
-        var color = DesktopEdgeWindow.ColorBrush(stack.Color, widget ? .48 : .9);
+        var color = DesktopEdgeWindow.ColorBrush(stack.Color);
         visibleTiles = filtered.Select((item, i) => new FileTile(item, color, TileSide, i)).ToList();
         FileItems.ItemsSource = visibleTiles.Chunk(tileColumns).ToList();
         StackTitle.Text = stack.Name; StackSubtitle.Text = $"{items.Count} 個のファイル / {items.Count(x => x.IsStored)} 個を収納済み";
@@ -221,7 +223,7 @@ public partial class MainWindow : Window
         EmptyDescription.Visibility = widget ? Visibility.Collapsed : Visibility.Visible;
         EmptyDescription.Text = SearchBox.Text.Length > 0 ? "別のファイル名で検索してください。" : "分類ルールは設定から変更できます。";
         RestoreButton.IsEnabled = items.Any(x => x.IsStored); OrganizeButton.IsEnabled = allItems.Any(x => x.CanOrganize);
-        ExpandAllButton.Background = DesktopEdgeWindow.ColorBrush(stack.Color, .4);
+        ExpandAllButton.Background = DesktopEdgeWindow.ColorBrush(stack.Color);
         ExpandAllButton.Foreground = WidgetToggleArrow.Stroke = WidgetVisuals.Ink(ExpandAllButton.Background);
     }
     private void UpdateDesktopContext(bool value)

@@ -12,9 +12,10 @@ public static class WidgetVisuals
     public static Brush Ink(Brush background)
     {
         var color = ((SolidColorBrush)background).Color;
-        double luminance = .2126 * Linear(color.R) + .7152 * Linear(color.G) + .0722 * Linear(color.B);
+        double luminance = Luminance(color);
         return (luminance + .05) / .05 >= 1.05 / (luminance + .05) ? Brushes.Black : Brushes.White;
     }
+    public static double Luminance(Color color) => .2126 * Linear(color.R) + .7152 * Linear(color.G) + .0722 * Linear(color.B);
     private static double Linear(byte channel) { double c = channel / 255d; return c <= .04045 ? c / 12.92 : Math.Pow((c + .055) / 1.055, 2.4); }
 
     // Balance short CJK labels into two lines instead of leaving one orphan character.
@@ -35,5 +36,11 @@ public static class WidgetVisuals
 public sealed class StateLayerConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is SolidColorBrush b && b.Color == Colors.White ? Brushes.Black : Brushes.White;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => DependencyProperty.UnsetValue;
+}
+
+public sealed class ColorInkConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is string color ? WidgetVisuals.Ink(DesktopEdgeWindow.ColorBrush(color)) : Brushes.Black;
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => DependencyProperty.UnsetValue;
 }

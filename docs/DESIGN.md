@@ -18,7 +18,9 @@ Lateraroot is a Windows desktop-customization utility. Its primary objects are i
 | Widget label / filename | 12 DIP; full name in accessible name and tooltip |
 | Metadata | 10 DIP, short counts only |
 | Inspector heading / body | 24 / 13 DIP |
-| Ink / canvas | #171717 / opaque white on inspectors; transparent unused widget area |
+| Default palette | #FFFFFF / #000000; arbitrary user tint, existing settings retained |
+| Ink / canvas | Automatic black/white ink on glass; white editor content; #F5F5F7 settings shell; transparent unused widget area |
+| Material | Translucent gradient tint, specular rim, inner bevel; 16 DIP radius inside a square module |
 | Controls | Consistent 1.2 DIP vector strokes, native labeled buttons |
 | Focus | Inset 2 DIP high-contrast ring; geometry stays fixed |
 
@@ -36,3 +38,11 @@ Lateraroot is a Windows desktop-customization utility. Its primary objects are i
 ## Review gates
 
 Actual tile bounds must remain square, pointer and keyboard targets must agree, sparse grid areas must stay transparent, file name contrast must remain readable, interrupted animation must leave no invisible active surface, and large lists must retain bounded realized containers. Rendering snapshots verify final and intermediate states; they are app-rendered previews, not captures of a user's desktop.
+
+## Glass material and genre editing (v0.5)
+
+[Apple's Materials guidance](https://developer.apple.com/design/human-interface-guidelines/materials) and the verified UI/UX Pro Max Liquid Glass entry inform translucency, light on edges, restrained color and accessible fallbacks. This Windows WPF implementation is a Liquid Glass-inspired material, not Apple's native material or an optical refraction engine. It transmits the actual backdrop through alpha blending, adds static vector reflections and uses the existing finite hover/entry motion. It does not capture desktop contents, run background blur or use undocumented composition APIs. [DwmEnableBlurBehindWindow](https://learn.microsoft.com/windows/win32/api/dwmapi/nf-dwmapi-dwmenableblurbehindwindow) no longer produces a blur effect on Windows 8 and later, so it is not used as a pretend blur implementation.
+
+One `GlassSurface` draws categories, file cells, compact framing, controls and the editor preview. Its frozen brush/pen cache is capped at 64 materials. Tints near the contrast threshold are adjusted conservatively; black/white ink is chosen automatically. Rendered text areas are checked against both black and white backdrops at three vertical positions for ten representative colors (4.5:1 minimum). Empty corners remain alpha-zero. Reduced transparency removes reflections and uses opaque fills. Windows high contrast forces an opaque surface while retaining the chosen tint and automatic contrasting ink; changes are handled by one application-level preference listener.
+
+The default palette alternates white and black. A user's existing colors are preserved. Genre editing uses a list, named color swatches, a standard Windows color dialog, a validated HEX field and a live preview. Selection is marked with a check as well as color. The fallback genre remains available but can be renamed and recolored. Priority has explicit up/down controls. Edits use a cloned draft; only Save applies them. Resetting colors preserves names, rules and IDs. Size/layout/behavior live in a separate tab, leaving the default tab focused on genres and colors.
