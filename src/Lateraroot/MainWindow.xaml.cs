@@ -178,7 +178,6 @@ public partial class MainWindow : Window
         Dispatcher.BeginInvoke(() =>
         {
             if (stopping) return;
-            catalog.Invalidate();
             if (Host.Settings.Visibility == DockVisibility.Visible) refreshTimer.Start();
             // While hidden/minimized, retain one pending notification until the user returns.
         });
@@ -186,7 +185,8 @@ public partial class MainWindow : Window
     private async Task<bool> RefreshFilesAsync(bool force = false)
     {
         if (!ready || busy || stopping) return false;
-        refreshTimer.Stop(); Interlocked.Exchange(ref refreshQueued, 0);
+        refreshTimer.Stop();
+        if (Interlocked.Exchange(ref refreshQueued, 0) != 0) catalog.Invalidate();
         try
         {
             var snapshot = await catalog.RefreshAsync(Host.Settings, force);

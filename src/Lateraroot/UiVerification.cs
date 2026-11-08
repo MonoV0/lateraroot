@@ -73,6 +73,7 @@ public partial class MainWindow
                 SetDockVisibility(visibility); int before = catalog.ReadCount;
                 string waiting = Path.Combine(Host.DesktopDirectory, $"待機確認-{visibility}.txt"); File.WriteAllText(waiting, "Deferred read");
                 await WaitForFiles(() => catalog.IsDirty || refreshQueued != 0); await Task.Delay(750);
+                Check(!catalog.IsDirty && !refreshTimer.IsEnabled, $"{visibility} notifications cannot restart an already-active acquisition");
                 Check(catalog.ReadCount == before && !allItems.Any(i => i.Path == waiting), $"{visibility} coalesces changes without background file reads");
                 SetDockVisibility(DockVisibility.Visible); await RefreshFilesAsync();
                 Check(allItems.Any(i => i.Path == waiting), $"{visibility} return acquires the pending changes");
