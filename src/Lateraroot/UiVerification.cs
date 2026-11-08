@@ -269,7 +269,8 @@ public partial class MainWindow
                 var visual = new DrawingVisual();
                 using (var dc = visual.RenderOpen())
                 {
-                    DrawBackdrop(dc, new Rect(0, 0, width, height));
+                    // Keep the animated documentation small; still previews use the generated neutral backdrop.
+                    dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
                     foreach (var window in new Window[] { desktopEdge, this })
                     {
                         if (!window.IsVisible) continue;
