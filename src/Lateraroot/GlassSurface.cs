@@ -56,7 +56,7 @@ public sealed class GlassSurface : Border
         {
             byte Composite(byte c) => (byte)(light ? c * alpha / 255 : c * alpha / 255 + 255 - alpha);
             double luminance = WidgetVisuals.Luminance(Color.FromRgb(Composite(tint.R), Composite(tint.G), Composite(tint.B)));
-            if (light ? luminance >= .19 : luminance <= .12) break;
+            if (light ? luminance >= .23 : luminance <= .12) break;
             byte Shift(byte c) => (byte)Math.Clamp(light ? c + Math.Max(1, (255 - c) / 12) : c - Math.Max(1, c / 12), 0, 255);
             tint = Color.FromRgb(Shift(tint.R), Shift(tint.G), Shift(tint.B));
         }

@@ -35,7 +35,7 @@ public static class WidgetVisuals
 
 public sealed class StateLayerConverter : IValueConverter
 {
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is SolidColorBrush b && b.Color == Colors.White ? Brushes.Black : Brushes.White;
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is Brush brush ? brush : Brushes.Black;
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => DependencyProperty.UnsetValue;
 }
 

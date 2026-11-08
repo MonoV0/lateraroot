@@ -37,6 +37,7 @@ public sealed class AppSettings
     public DockVisibility Visibility { get; set; } = DockVisibility.Visible;
     public int TileSize { get; set; } = 88;
     public bool ReduceMotion { get; set; }
+    public bool FollowSystemAnimations { get; set; }
     public bool ReduceTransparency { get; set; }
     public bool LockPosition { get; set; }
     public bool CheckForUpdates { get; set; } = true;

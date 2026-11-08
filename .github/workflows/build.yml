@@ -17,6 +17,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Prepare attributed Flaticon UI icons
+        shell: pwsh
+        run: ./scripts/Prepare-Icons.ps1
       - name: Build
         run: dotnet build src/Lateraroot/Lateraroot.csproj -c Release
       - name: Storage and classification tests
@@ -25,7 +28,7 @@ jobs:
         run: dotnet publish src/Lateraroot/Lateraroot.csproj -c Release -r win-x64 --self-contained true -o artifacts/win-x64
       - name: Include documentation
         run: |
-          Copy-Item LICENSE,README.md,CONTRIBUTING.md,THIRD_PARTY_NOTICES.md,Velopack-LICENSE.txt artifacts/win-x64
+          Copy-Item LICENSE,README.md,CONTRIBUTING.md,THIRD_PARTY_NOTICES.md,Velopack-LICENSE.txt,Flaticon-LICENSE.txt artifacts/win-x64
           Copy-Item docs artifacts/win-x64/docs -Recurse
       - name: Package update-capable portable app
         shell: pwsh

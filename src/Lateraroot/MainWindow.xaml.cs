@@ -37,8 +37,12 @@ public partial class MainWindow : Window
     private (string Id, string Name, string Color)[] railAppearance = [];
     private IReadOnlyList<DesktopItem> allItems = [];
     private string selectedStack;
-    private bool expanded, pinned, ready, busy, desktopMode, showAll, dragging, widgetInspector, closingPanel, animateTiles;
+    private bool expanded, pinned, ready, busy, desktopMode, showAll, dragging, widgetInspector, closingPanel;
     private int motionGeneration;
+    private int visibilityGeneration;
+    private bool hidingSurface;
+    private long tileEntryUntil;
+    private readonly HashSet<FileTile> enteredTiles = [];
     private IReadOnlyList<FileTile> visibleTiles = [];
     private int tileColumns = 1;
     private ScrollViewer? FileScroll { get { FileItems.ApplyTemplate(); return FileItems.Template.FindName("RowsScroll", FileItems) as ScrollViewer; } }
@@ -116,8 +120,12 @@ public partial class MainWindow : Window
     private void ApplyPresentation()
     {
         if (!ready || stopping) return;
+        visibilityGeneration++;
+        hidingSurface = false;
+        bool hadRail = Rail.IsVisible, hadTab = MinimizedTab.IsVisible;
+        WidgetMotion.Cancel(Frame);
         CancelTransition();
-        WidgetMotion.SetEnabled(this, WidgetMotion.Allowed);
+        RefreshMotionPolicy();
         GlassSurface.SetReduced(this, Host.Settings.ReduceTransparency || SystemParameters.HighContrast);
         GlassSurface.SetReduced(desktopEdge, Host.Settings.ReduceTransparency || SystemParameters.HighContrast);
         UpdatePositionLock();
@@ -153,6 +161,31 @@ public partial class MainWindow : Window
             desktopEdge.Place();
         }
         else { desktopEdge.Hide(); if (!IsVisible) Show(); }
+        if (Rail.IsVisible && !hadRail) WidgetMotion.Reveal(Rail, Host.Settings.Edge);
+        if (MinimizedTab.IsVisible && !hadTab) WidgetMotion.Reveal(MinimizedTab, Host.Settings.Edge);
+    }
+    internal void RefreshMotionPolicy()
+    {
+        WidgetMotion.SetEnabled(this, WidgetMotion.Allowed);
+        WidgetMotion.SetEnabled(desktopEdge, WidgetMotion.Allowed);
+        if (WidgetMotion.Allowed) return;
+        WidgetMotion.Cancel(Frame); WidgetMotion.Cancel(Panel); WidgetMotion.Cancel(Rail); WidgetMotion.Cancel(MinimizedTab);
+        if (desktopEdge.Content is UIElement content) WidgetMotion.Cancel(content);
+        CancelTileMotion(FileItems);
+        if (closingPanel || hidingSurface)
+        {
+            expanded = pinned = showAll = widgetInspector = false;
+            ApplyPresentation();
+        }
+        static void CancelTileMotion(DependencyObject root)
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is Button button) WidgetMotion.Cancel(button);
+                else CancelTileMotion(child);
+            }
+        }
     }
     private void RestartWatchers()
     {
@@ -279,7 +312,7 @@ public partial class MainWindow : Window
         EmptyDescription.Text = SearchBox.Text.Length > 0 ? "別のファイル名で検索してください。" : "分類ルールは設定から変更できます。";
         RestoreButton.IsEnabled = items.Any(x => x.IsStored); OrganizeButton.IsEnabled = !organizePending && allItems.Any(x => x.CanOrganize);
         ExpandAllButton.Background = DesktopEdgeWindow.ColorBrush(stack.Color);
-        ExpandAllButton.Foreground = WidgetToggleArrow.Stroke = WidgetVisuals.Ink(ExpandAllButton.Background);
+        ExpandAllButton.Foreground = WidgetToggleArrow.Fill = WidgetVisuals.Ink(ExpandAllButton.Background);
     }
     private void UpdateDesktopContext(bool value)
     {
@@ -309,14 +342,16 @@ public partial class MainWindow : Window
     private void CancelTransition() { motionGeneration++; closingPanel = false; WidgetMotion.Cancel(Panel); }
     private void PresentWithMotion()
     {
-        animateTiles = true; ApplyPresentation(); WidgetMotion.Reveal(Panel, Host.Settings.Edge);
-        Dispatcher.BeginInvoke(() => animateTiles = false, DispatcherPriority.ContextIdle);
+        enteredTiles.Clear(); tileEntryUntil = Environment.TickCount64 + 550;
+        ApplyPresentation(); WidgetMotion.Reveal(Panel, Host.Settings.Edge);
     }
     private void FileTileLoaded(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.DataContext is not FileTile tile) return;
         WidgetMotion.Cancel(button);
-        if (!animateTiles) return;
+        // Realization may happen after ContextIdle. Animate each newly shown item once,
+        // within this entry only; scrolling later must not replay the opening sequence.
+        if (Environment.TickCount64 > tileEntryUntil || !enteredTiles.Add(tile)) return;
         int column = tile.DisplayIndex % tileColumns;
         int rank = (Host.Settings.Edge == DockEdge.Right ? tileColumns - 1 - column : column) + tile.DisplayIndex / tileColumns;
         WidgetMotion.Reveal(button, Host.Settings.Edge, rank);
@@ -380,7 +415,7 @@ public partial class MainWindow : Window
             SecondRow.Height = top ? new GridLength(expanded && !minimized ? 1 : 0, GridUnitType.Star) : railSize;
         }
         DockPanel.SetDock(RailHeader, vertical ? Dock.Top : Dock.Left); DockPanel.SetDock(RailActions, vertical ? Dock.Bottom : Dock.Right);
-        RailHeader.Width = vertical ? double.NaN : 48;
+        RailHeader.Width = vertical ? double.NaN : 66;
         RailActions.Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
         StackRail.Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
         MiniFirstCol.Width = vertical ? new GridLength(1, GridUnitType.Star) : new GridLength(20);
@@ -394,10 +429,19 @@ public partial class MainWindow : Window
     }
     private void SetDockVisibility(DockVisibility value)
     {
+        var previous = Host.Settings.Visibility;
         Host.Settings.Visibility = value; expanded = pinned = showAll = widgetInspector = false;
         PinButton.Content = "固定";
         if (value == DockVisibility.Visible && (catalog.IsDirty || refreshQueued != 0)) _ = RefreshFilesAsync();
-        SaveSettings(); ApplyPresentation();
+        SaveSettings();
+        if (value != DockVisibility.Visible && previous == DockVisibility.Visible && WidgetMotion.Allowed && (IsVisible || desktopEdge.IsVisible))
+        {
+            int ticket = ++visibilityGeneration;
+            hidingSurface = true;
+            var surface = desktopEdge.IsVisible && desktopEdge.Content is UIElement content ? content : Frame;
+            WidgetMotion.Exit(surface, Host.Settings.Edge, () => { if (ticket == visibilityGeneration) ApplyPresentation(); });
+        }
+        else ApplyPresentation();
     }
     private void RestoreDock() { SetDockVisibility(DockVisibility.Visible); if (!desktopMode) Expand(); }
     private void RestoreDockClick(object sender, RoutedEventArgs e) => RestoreDock();
@@ -424,6 +468,7 @@ public partial class MainWindow : Window
     {
         bool unlocked = !Host.Settings.LockPosition;
         DragHandle.IsEnabled = MiniDragHandle.IsEnabled = unlocked;
+        DragHandle.Cursor = MiniDragHandle.Cursor = unlocked ? Cursors.SizeAll : Cursors.Arrow;
         DragHandle.ToolTip = MiniDragHandle.ToolTip = unlocked ? "ドラッグして配置" : "配置はロックされています。設定や右クリックから解除できます。";
         ToolTipService.SetShowOnDisabled(DragHandle, true); ToolTipService.SetShowOnDisabled(MiniDragHandle, true);
         positionLockItem.Checked = !unlocked; desktopEdge.UpdateDragLock();
@@ -471,7 +516,7 @@ public partial class MainWindow : Window
     {
         modalDepth = Math.Max(0, modalDepth - 1);
         if (stopping) return;
-        ApplyDeferredContext(); ApplyPresentation();
+        ApplyDeferredContext();
         if (!IsMouseOver && !pinned) WindowLeave(this, null!);
     }
     private void FileMenuClosed(object sender, RoutedEventArgs e) => EndModal();

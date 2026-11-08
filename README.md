@@ -45,7 +45,7 @@ Windows 10 / 11（64 bit）向けです。配布 ZIP は .NET 同梱で、管理
 - **最小化:** `−` で小さなタブにします。タブの `↗` で戻せます。タブもドラッグできます。
 - **非表示:** コンパクト表示の `×` や右クリックの「非表示」で、ウィジェットと一覧を隠します。終了はせず、通知領域の「表示する」または `Ctrl+Alt+Space` で戻せます。最小化・非表示の選択も次回起動時に引き継ぎます。
 - **固定:** インスペクター上部の「固定」で開いたままにします。Esc で閉じます。
-- **動き:** 展開は端からの短いスライドと段階的な表示、収納は短いフェードです。素早い再ホバーで収納を中断できます。Windowsのアニメーション設定に従い、設定の「動きを減らす」でも即時表示へ切り替えられます。
+- **動き:** 初期設定からアニメーションを有効にします。展開は端からの短いスライドと段階的な表示、収納・最小化・非表示は短いフェードです。素早い再ホバーで収納を中断できます。「動きを減らす」で即時表示へ、「Windowsのアニメーション設定に合わせる」でOSに従う動作へ切り替えられます。Windows自体の設定は変更しません。
 - **呼び出す:** `Ctrl+Alt+Space` で一覧を開閉し、非表示・最小化中は表示を戻します。競合時は通知領域のアイコンから開いてください。
 - **終了:** 通知領域の Lateraroot を右クリック →「終了」。サインイン時の起動は設定から任意で有効にできます。
 
@@ -100,6 +100,7 @@ Windows 10 / 11（64 bit）向けです。配布 ZIP は .NET 同梱で、管理
 メインフォントは同梱の **Zen Kaku Gothic New Medium** です。Windows へのフォントインストールは不要です。Light / Regular は未使用のため同梱していません。
 
 ```powershell
+./scripts/Prepare-Icons.ps1 # Windows / PowerShell 7。公式Flaticonから検証済みアイコンを準備
 dotnet build src/Lateraroot/Lateraroot.csproj -c Release
 dotnet run --project tests/Lateraroot.Core.Tests -c Release
 dotnet run --project src/Lateraroot -- --demo
@@ -145,7 +146,7 @@ GitHub Actionsでも単体テスト・配布ZIPのUI検証に加え、実パッ�
 - ファイル取得と表示は分離し、一つの取得結果をデスクトップ・コンパクト表示で共有します。取得はバックグラウンドで直列化し、古い結果を反映しません。検索・並べ替えでディスクを読み直しません。変更がない表示は保持し、別ジャンルの変更で開いている一覧を作り直しません。最小化中も新しい取得を保留します。
 - ファイル一覧はネイティブのリサイクル行で仮想化し、可視セルにバインドされたアイコンだけを取得します。閉じる・隠す操作で一覧要素を解放し、アイコンキャッシュには上限を設けています。
 - 画面中央を覆う透明な全画面ウィンドウ、WebView、常時アニメーションは使いません。アニメーションは状態変化時の変形と透明度に限定し、ウィンドウの幅・高さは補間しません。
-- 構造用アイコンは共通のベクター線、メインフォントはZen Kaku Gothic New Mediumです。短い日本語カテゴリ名は2行を均等にし、暗いカスタム色では文字色を自動調整します。
+- UIアイコンは[Uicons by Flaticon](https://www.flaticon.com/uicons)のBold Roundedから必要な13点をコンパイルして使います。実行時の通信・アイコンフォントのインストールは不要です。メインフォントはZen Kaku Gothic New Mediumです。短い日本語カテゴリ名は2行を均等にし、暗いカスタム色では文字色を自動調整します。
 - ガラス素材はウィジェット・ファイル・コンパクト表示・プレビューで共通です。凍結したブラシ・ペンを最大64色分キャッシュし、背景のキャプチャ、背景ぼかし、常時動く光沢は使いません。透明効果を減らすと光沢を止め、不透明にします。
 
 UI/UX Pro Maxの検索ガイドと参考サイトの実際のCSS・モーション調査を使って設計しました。採用・除外した指針は [docs/DESIGN.md](docs/DESIGN.md) に記録しています。
@@ -154,7 +155,7 @@ Rainmeterからは情報取得・表示・操作の分離、操作中心の更�
 
 ## Contributing / License
 
-[CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。ソースは MIT License、同梱フォントは SIL Open Font License 1.1 です。[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) と `Assets/Fonts/OFL.txt` を参照してください。
+[CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。アプリのソースはMIT License、同梱フォントはSIL Open Font License 1.1、FlaticonのUI図形は別のFlaticon Licenseです。[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)、`Flaticon-LICENSE.txt`、`Assets/Fonts/OFL.txt` を参照してください。Flaticonの原本フォント・生成した図形ソースはGitへ含めません。ビルド時に公式配布元から準備し、アプリ内の表示に限って使います。
 
 ---
 

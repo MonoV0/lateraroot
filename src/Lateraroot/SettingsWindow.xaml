@@ -123,15 +123,15 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <Button x:Name="AddButton" Grid.Row="2" Content="＋ ジャンルを追加" Click="AddRule" HorizontalAlignment="Stretch" Margin="0,12,0,8"/>
+                        <Button x:Name="AddButton" Grid.Row="2" Click="AddRule" HorizontalAlignment="Stretch" Margin="0,12,0,8"><StackPanel Orientation="Horizontal"><local:UiIcon Kind="AddIcon" Width="14" Height="14" Margin="0,0,6,0"/><TextBlock Text="ジャンルを追加"/></StackPanel></Button>
                         <Grid Grid.Row="3">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <Button x:Name="UpButton" Content="↑ 上へ" Click="MoveUp" Margin="0,0,6,0" ToolTip="分類の優先順位を上げる"/>
-                            <Button x:Name="DownButton" Grid.Column="1" Content="↓ 下へ" Click="MoveDown" Margin="0,0,6,0"/>
+                            <Button x:Name="UpButton" Click="MoveUp" Margin="0,0,6,0" ToolTip="分類の優先順位を上げる"><StackPanel Orientation="Horizontal"><local:UiIcon Kind="UpIcon" Width="14" Height="14" Margin="0,0,4,0"/><TextBlock Text="上へ"/></StackPanel></Button>
+                            <Button x:Name="DownButton" Grid.Column="1" Click="MoveDown" Margin="0,0,6,0"><StackPanel Orientation="Horizontal"><local:UiIcon Kind="DownIcon" Width="14" Height="14" Margin="0,0,4,0"/><TextBlock Text="下へ"/></StackPanel></Button>
                             <Button x:Name="RemoveButton" Grid.Column="2" Content="削除" Click="RemoveRule" ToolTip="未分類用のジャンルは残します"/>
                         </Grid>
                     </Grid>
@@ -241,7 +241,9 @@
                             <TextBlock Text="見た目とアクセシビリティ" FontSize="16" Margin="0,0,0,8"/>
                             <CheckBox x:Name="TransparencyBox" Content="透明効果を減らす" Checked="TransparencyChanged" Unchecked="TransparencyChanged"/>
                             <TextBlock Text="ガラスを不透明にして読みやすくします。Windowsのハイコントラスト設定にも従います。" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"/>
-                            <CheckBox x:Name="ReduceMotionBox" Content="動きを減らす" ToolTip="Windowsのアニメーション設定にも自動で従います"/>
+                            <CheckBox x:Name="ReduceMotionBox" Content="動きを減らす" ToolTip="Laterarootの動きを止め、すぐに表示を切り替えます"/>
+                            <CheckBox x:Name="FollowSystemBox" Content="Windowsのアニメーション設定に合わせる"/>
+                            <TextBlock Text="初期設定ではLaterarootのアニメーションを有効にします。「動きを減らす」を選ぶと常に停止します。" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"/>
                             <Separator Margin="0,16"/>
                             <CheckBox x:Name="PublicBox" Content="共有デスクトップも表示する（移動しません）"/>
                             <CheckBox x:Name="StartupBox" Content="サインイン時に起動する"/>
@@ -265,6 +267,7 @@
                     <Button Content="更新を確認 ↗" Click="OpenUpdates" Padding="0,7" Background="Transparent" FontSize="11" Margin="0,0,16,0"/>
                     <Button Content="収納フォルダー ↗" Click="OpenStorage" Padding="0,7" Background="Transparent" FontSize="11"/>
                 </WrapPanel>
+                <Button x:Name="IconCredits" Content="Uicons by Flaticon" Click="OpenIconCredits" HorizontalAlignment="Left" Padding="0,2" Background="Transparent" FontSize="10" ToolTip="UIアイコンの提供元とライセンス"/>
             </StackPanel>
             <Button Grid.Column="1" Content="キャンセル" IsCancel="True" Padding="20,10" Margin="8,0"/>
             <Button x:Name="SaveButton" Grid.Column="2" Content="保存する" Click="SaveSettings" IsDefault="True" Padding="24,10" Background="#171717" Foreground="White"/>

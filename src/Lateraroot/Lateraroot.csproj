@@ -6,7 +6,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>0.6.1</Version>
+    <Version>0.7.0</Version>
     <StartupObject>Lateraroot.Program</StartupObject>
     <AssemblyName>Lateraroot</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -17,4 +17,7 @@
     <Resource Include="Assets/Fonts/ZenKakuGothicNew-Medium.ttf" />
     <Content Include="Assets/Fonts/OFL.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <Target Name="RequireUiIcons" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('Generated/FlaticonIcons.xaml')" Text="Run ./scripts/Prepare-Icons.ps1 in PowerShell 7 from the repository root before building Lateraroot." />
+  </Target>
 </Project>

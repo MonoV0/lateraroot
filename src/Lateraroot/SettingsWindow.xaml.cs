@@ -27,7 +27,8 @@ public partial class SettingsWindow : Window
         RulesList.ItemsSource = rules;
         SizeBox.ItemsSource = Enumerable.Range(9, 6).Select(i => new SizeChoice(i * 8, $"{i * 8} × {i * 8} DIP")).ToList();
         SizeBox.SelectedValue = draft.TileSize; OffsetBox.Value = draft.DockOffset;
-        ReduceMotionBox.IsChecked = draft.ReduceMotion; TransparencyBox.IsChecked = draft.ReduceTransparency; UpdatesBox.IsChecked = draft.CheckForUpdates;
+        ReduceMotionBox.IsChecked = draft.ReduceMotion; FollowSystemBox.IsChecked = draft.FollowSystemAnimations;
+        TransparencyBox.IsChecked = draft.ReduceTransparency; UpdatesBox.IsChecked = draft.CheckForUpdates;
         LockPositionBox.IsChecked = draft.LockPosition;
         double scale = WindowPlacement.Scale(this, WindowPlacement.Screen);
         MaxHeight = Math.Max(340, WindowPlacement.Screen.WorkingArea.Height / scale - 24);
@@ -140,6 +141,11 @@ public partial class SettingsWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or InvalidDataException) { SaveError.Text = ex.Message; }
     }
     private void OpenUpdates(object sender, RoutedEventArgs e) => UpdateWindow.ShowFor(this, SaveDraft);
+    private void OpenIconCredits(object sender, RoutedEventArgs e)
+    {
+        try { Process.Start(new ProcessStartInfo("https://www.flaticon.com/uicons") { UseShellExecute = true }); }
+        catch (System.ComponentModel.Win32Exception ex) { SaveError.Text = ex.Message; }
+    }
     internal void SaveDraft()
     {
         if (!Regex.IsMatch(ColorBox.Text, "^#[0-9A-Fa-f]{6}$")) { ColorBox.Focus(); throw new InvalidDataException("カラーコードを確認するか、色を選んでください。"); }
@@ -147,7 +153,8 @@ public partial class SettingsWindow : Window
         draft.IncludePublicDesktop = PublicBox.IsChecked == true;
         draft.CloseDelayMs = int.Parse((string)((ComboBoxItem)DelayBox.SelectedItem).Tag);
         draft.Stacks = rules.ToList(); draft.TileSize = (int?)SizeBox.SelectedValue ?? 88; draft.DockOffset = OffsetBox.Value;
-        draft.ReduceMotion = ReduceMotionBox.IsChecked == true; draft.ReduceTransparency = TransparencyBox.IsChecked == true; draft.CheckForUpdates = UpdatesBox.IsChecked == true;
+        draft.ReduceMotion = ReduceMotionBox.IsChecked == true; draft.FollowSystemAnimations = FollowSystemBox.IsChecked == true;
+        draft.ReduceTransparency = TransparencyBox.IsChecked == true; draft.CheckForUpdates = UpdatesBox.IsChecked == true;
         draft.LockPosition = LockPositionBox.IsChecked == true;
         bool startupChanged = !App.Current.IsSandbox && (StartupBox.IsChecked == true) != startupWasEnabled;
         draft.Validate();

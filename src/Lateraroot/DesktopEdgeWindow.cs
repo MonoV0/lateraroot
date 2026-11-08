@@ -59,10 +59,7 @@ internal sealed class DesktopEdgeWindow : Window
         var utility = new Grid { Background = Brushes.Transparent };
         utility.Children.Add(new GlassSurface { Background = Brushes.White, IsHitTestVisible = false });
         grip = new Thumb { Height = 22, VerticalAlignment = VerticalAlignment.Top, Cursor = System.Windows.Input.Cursors.SizeAll };
-        var template = new ControlTemplate(typeof(Thumb));
-        var border = new FrameworkElementFactory(typeof(Border)); border.SetValue(Border.BackgroundProperty, Brushes.Transparent);
-        var text = new FrameworkElementFactory(typeof(TextBlock)); text.SetValue(TextBlock.TextProperty, "····"); text.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-        border.AppendChild(text); template.VisualTree = border; grip.Template = template;
+        grip.Template = (ControlTemplate)App.Current.FindResource("CompactGripTemplate"); WidgetMotion.SetHover(grip, true);
         grip.DragStarted += dragStart; grip.DragDelta += dragDelta; grip.DragCompleted += dragEnd;
         var utilityLabel = new Grid { Margin = new Thickness(8) };
         utilityLabel.Children.Add(new TextBlock { Text = "lr.", FontSize = 20, VerticalAlignment = VerticalAlignment.Top });
@@ -76,6 +73,7 @@ internal sealed class DesktopEdgeWindow : Window
     {
         if (grip is null) return;
         grip.IsEnabled = !App.Current.Settings.LockPosition;
+        grip.Cursor = grip.IsEnabled ? System.Windows.Input.Cursors.SizeAll : System.Windows.Input.Cursors.Arrow;
         grip.ToolTip = grip.IsEnabled ? "ドラッグで配置を編集" : "配置はロックされています。設定や右クリックから解除できます。";
         ToolTipService.SetShowOnDisabled(grip, true);
     }
@@ -83,7 +81,7 @@ internal sealed class DesktopEdgeWindow : Window
     {
         var label = new Grid { Margin = new Thickness(compact ? 8 : 10) };
         label.Children.Add(new TextBlock { Text = (index + 1).ToString("00"), FontSize = 10, VerticalAlignment = VerticalAlignment.Top });
-        label.Children.Add(new TextBlock { Text = compact ? rule.Name : WidgetVisuals.Balance(rule.Name, App.Current.Settings.TileSize - 20), FontSize = compact ? 11 : 12, TextWrapping = compact ? TextWrapping.NoWrap : TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = 16, LineStackingStrategy = LineStackingStrategy.BlockLineHeight, MaxHeight = compact ? 18 : 32, VerticalAlignment = VerticalAlignment.Center });
+        label.Children.Add(new TextBlock { Text = WidgetVisuals.Balance(rule.Name, compact ? 50 : App.Current.Settings.TileSize - 20, compact ? 11 : 12), FontSize = compact ? 11 : 12, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = compact ? 13 : 16, LineStackingStrategy = LineStackingStrategy.BlockLineHeight, MaxHeight = compact ? 26 : 32, VerticalAlignment = VerticalAlignment.Center });
         var counter = new TextBlock { Text = count + "件", FontSize = 10, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Right };
         label.Children.Add(counter); label.Tag = counter;
         return label;

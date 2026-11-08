@@ -25,6 +25,14 @@ public partial class MainWindow
         try
         {
             await initialRefresh;
+            WidgetMotion.TestOverride = null;
+            Check(!Host.Settings.ReduceMotion && !Host.Settings.FollowSystemAnimations && WidgetMotion.Allowed, "Production default enables motion independently of Windows preference");
+            Host.Settings.FollowSystemAnimations = true;
+            Check(WidgetMotion.Allowed == SystemParameters.ClientAreaAnimation, "Optional system policy follows the real Windows animation flag");
+            Host.Settings.FollowSystemAnimations = false;
+            Host.Settings.ReduceMotion = true; Check(!WidgetMotion.Allowed, "App reduced motion always takes priority"); Host.Settings.ReduceMotion = false;
+            foreach (string icon in new[] { "ArrowOut", "ArrowIn", "CloseIcon", "MinusIcon", "GripIcon", "SettingsIcon", "HideIcon", "SearchIcon", "ReloadIcon", "LockIcon", "AddIcon", "UpIcon", "DownIcon" })
+                Check(FindResource(icon) is Geometry geometry && !geometry.Bounds.IsEmpty && geometry.Bounds.Width <= 24.01 && geometry.Bounds.Height <= 24.01, "Compiled Flaticon geometry: " + icon);
             WidgetMotion.TestOverride = false;
             await Settled();
             var face = new Typeface(FontFamily, FontStyle, FontWeight, FontStretch);
@@ -49,6 +57,7 @@ public partial class MainWindow
                 }
             }
             Check(!expanded && Math.Abs(ActualWidth - 68) < 1, "Compact access remains available");
+            Check(DragHandle.ActualHeight == 66 && RailHeader.Children.Count == 1 && DragHandle.Template.FindName("Glyph", DragHandle) is UiIcon { Kind: "GripIcon" }, "Compact header is one glass drag control with an actual Flaticon grip");
             int docs = Host.Settings.Stacks.FindIndex(x => x.Id == "documents");
             ((Button)StackRail.Children[docs]).RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseEnterEvent });
             TogglePin(this, new RoutedEventArgs()); await Settled();
@@ -176,17 +185,19 @@ public partial class MainWindow
             Check(settings.RemoveSelectedGenre(), "Custom genres can be removed before saving");
             settings.RulesList.SelectedItem = settings.RulesList.Items.Cast<StackRule>().First(r => r.Tokens.Contains("*"));
             Check(!settings.RemoveSelectedGenre() && !settings.RemoveButton.IsEnabled && !settings.KindBox.IsEnabled, "The required fallback genre is protected while its name and color remain editable");
-            settings.RulesList.SelectedIndex = 0; settings.TransparencyBox.IsChecked = true; settings.LockPositionBox.IsChecked = true;
+            settings.RulesList.SelectedIndex = 0; settings.TransparencyBox.IsChecked = true; settings.LockPositionBox.IsChecked = true; settings.FollowSystemBox.IsChecked = true;
             Check(GlassSurface.GetReduced(settings), "Reduced transparency updates the preview through the shared material policy");
             settings.SaveDraft();
             var savedGenres = JsonStore.Read(Host.SettingsPath, () => new AppSettings());
             Check(savedGenres.Stacks[0].Name == "制作資料" && savedGenres.Stacks[0].Color == "#123456" && savedGenres.Stacks[0].Filter == ".blend, .psd" && savedGenres.ReduceTransparency, "Genre, arbitrary color, filter and transparency are saved together");
             Check(savedGenres.LockPosition, "Position lock is saved through the same settings draft");
+            Check(savedGenres.FollowSystemAnimations, "Optional Windows animation policy is persisted through the settings draft");
             settings.ResetColors();
             Check(settings.RulesList.Items.Cast<StackRule>().All(r => r.Color is "#FFFFFF" or "#000000") && settings.SelectedRule?.Name == "制作資料" && settings.SelectedRule.Filter == ".blend, .psd", "Monochrome reset preserves user genre names and classification rules");
             Check(Host.Settings.Stacks[0].Color == "#123456", "Subsequent draft edits do not mutate already-saved application settings");
             settings.Close(); Host.Settings = priorSettings; JsonStore.Write(Host.SettingsPath, priorSettings);
             var cleanSettings = new SettingsWindow(); cleanSettings.Show(); await Settled(); Capture(cleanSettings, "settings.png");
+            Check((string)cleanSettings.IconCredits.Content == "Uicons by Flaticon" && cleanSettings.IconCredits.IsVisible && cleanSettings.FollowSystemBox.IsChecked == false, "Settings visibly credits Flaticon and preserves the app-first motion default");
             Descendants<TabControl>(cleanSettings).Single().SelectedIndex = 1; await Settled();
             Check(cleanSettings.LockPositionBox.IsVisible && cleanSettings.LockPositionBox.IsEnabled, "Placement lock remains directly accessible in layout settings");
             Capture(cleanSettings, "settings-layout.png"); cleanSettings.Close();
@@ -206,10 +217,15 @@ public partial class MainWindow
             var restored = Host.Library.Restore(allItems.Select(x => x.RecordId!));
             Check(restored.Succeeded == total && restored.Errors.Count == 0, "Collision-safe restoration regression"); await RefreshFilesAsync(force: true);
             Check(allItems.All(x => !x.IsStored), "Restored files have no duplicate library entries");
-            WidgetMotion.TestOverride = true; Host.Settings.ReduceMotion = false;
+            WidgetMotion.TestOverride = null; Host.Settings.ReduceMotion = false;
+            var delayed = new Border(); WidgetMotion.Reveal(delayed, DockEdge.Right, 7);
+            Check(delayed.Opacity == 0 && delayed.RenderTransform is TranslateTransform { X: 12 }, "Delayed entry establishes its invisible initial frame synchronously");
+            await Task.Delay(75); Check(delayed.Opacity == 0, "Staggered cells remain hidden while waiting, without a flash");
+            await Task.Delay(500); Check(delayed.Opacity == 1 && delayed.RenderTransform is TranslateTransform { X: 0 }, "Delayed entry settles without a retained offset");
             UpdateDesktopContext(true); SelectStack("documents"); closeTimer.Stop(); pinned = true;
             await Task.Delay(90); Check(Panel.Opacity > 0 && Panel.Opacity < 1, "Entry motion has an observable intermediate state");
             CaptureDesktop("motion-intermediate.png");
+            Check(Descendants<Button>(FileItems).Any(b => b.Opacity is > 0 and < 1), "Realized file cells animate through their own stagger under normal production policy");
             await Task.Delay(650); Check(Math.Abs(Panel.Opacity - 1) < .001 && Panel.RenderTransform is TranslateTransform { X: 0, Y: 0 }, "Entry reaches its stable final state");
             Collapse(); await Task.Delay(45); SelectStack("documents"); closeTimer.Stop(); await Task.Delay(400);
             Check(expanded && IsVisible && !closingPanel && Math.Abs(Panel.Opacity - 1) < .001, "Rapid re-entry cancels a pending exit");
@@ -219,7 +235,23 @@ public partial class MainWindow
             Host.Settings.ReduceMotion = true; RestoreDock(); SelectStack("documents"); await Settled();
             Check(!WidgetMotion.GetEnabled(this) && Panel.Opacity == 1 && Panel.RenderTransform is TranslateTransform { X: 0, Y: 0 }, "Reduced motion uses the same immediate final state");
             Collapse(); Check(!expanded, "Reduced-motion exit is immediate");
-            Host.Settings.ReduceMotion = false; WidgetMotion.TestOverride = true;
+            Host.Settings.ReduceMotion = false; WidgetMotion.TestOverride = null;
+            UpdateDesktopContext(false); Collapse(); await Task.Delay(220);
+            var hoverButton = (Button)StackRail.Children[0]; hoverButton.ApplyTemplate();
+            hoverButton.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseEnterEvent });
+            closeTimer.Stop(); await Task.Delay(60);
+            var hoverInk = (Border)hoverButton.Template.FindName("HoverInk", hoverButton);
+            Check(hoverInk.Opacity is > 0 and < .08, "Real button hover has an observable intermediate state with no policy override");
+            await Task.Delay(250); Check(Math.Abs(hoverInk.Opacity - .08) < .001, "Hover reaches visible feedback");
+            hoverButton.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseLeaveEvent });
+            await Task.Delay(180); Check(hoverInk.Opacity == 0, "Hover exit releases its state layer");
+            SetDockVisibility(DockVisibility.Minimized); await Task.Delay(60); Check(Frame.Opacity is > 0 and < 1, "Minimize fades the current surface before switching");
+            await Task.Delay(500); Check(MinimizedTab.IsVisible && MinimizedTab.Opacity == 1, "Minimize completes with a stable access tab");
+            RestoreDock(); SetDockVisibility(DockVisibility.Hidden); await Task.Delay(35); RestoreDock(); await Task.Delay(500);
+            Check(IsVisible && Host.Settings.Visibility == DockVisibility.Visible && Frame.Opacity == 1, "Rapid restore invalidates a pending hide callback");
+            SetDockVisibility(DockVisibility.Hidden); await Task.Delay(35); Host.Settings.ReduceMotion = true; RefreshMotionPolicy();
+            Check(!IsVisible && !desktopEdge.IsVisible && !hidingSurface, "Disabling motion during an active hide immediately finishes the requested state");
+            Host.Settings.ReduceMotion = false; RestoreDock();
             await RecordMotion(); WidgetMotion.TestOverride = false;
             Check(File.Exists(Path.Combine(output, "motion.gif")), "Rendered animation preview is available");
             Check(Host.Windows.Count == 2, "Only two reusable presentation windows");
@@ -291,6 +323,7 @@ public partial class MainWindow
         }
         async Task RecordMotion()
         {
+            UpdateDesktopContext(true);
             Host.Settings.Edge = DockEdge.Right; Host.Settings.TileSize = 88; BuildRail();
             expanded = false; ApplyPresentation();
             var encoder = new GifBitmapEncoder();

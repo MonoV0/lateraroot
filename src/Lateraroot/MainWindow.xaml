@@ -26,7 +26,7 @@
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                         <Button x:Name="PinButton" Content="固定" ToolTip="開いたままにする" AutomationProperties.Name="開いたままにする" Click="TogglePin" Padding="8,6" BorderThickness="0" Background="Transparent"/>
                         <Button ToolTip="閉じる (Esc)" AutomationProperties.Name="パネルを閉じる" Click="ClosePanel" Width="36" Height="36" Padding="8" BorderThickness="0">
-                            <Path Data="{StaticResource CloseIcon}" Width="16" Height="16" Stretch="Uniform" Stroke="#202020" StrokeThickness="1.25"/>
+                            <Path Data="{StaticResource CloseIcon}" Width="16" Height="16" Stretch="Uniform" Fill="#202020"/>
                         </Button>
                     </StackPanel>
                     <StackPanel>
@@ -116,7 +116,7 @@
                 <Button x:Name="ExpandAllButton" Grid.RowSpan="5" VerticalAlignment="Top" Click="ToggleAllFiles" Style="{StaticResource SquareButton}" Visibility="Collapsed" ToolTip="すべて表示 / ホイールまたは Page Down でスクロール" AutomationProperties.Name="ウィジェットを展開または収納">
                     <Grid Margin="12">
                         <TextBlock x:Name="WidgetToggleCount" Text="00" FontSize="10" VerticalAlignment="Top"/>
-                        <Path x:Name="WidgetToggleArrow" Data="{StaticResource ArrowIn}" Stroke="#202020" StrokeThickness="1.2" Width="24" Height="24" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        <Path x:Name="WidgetToggleArrow" Data="{StaticResource ArrowIn}" Fill="#202020" Width="24" Height="24" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Center"/>
                         <TextBlock x:Name="WidgetToggleLabel" Text="OPEN" FontSize="10" VerticalAlignment="Bottom"/>
                     </Grid>
                     <Button.ContextMenu>
@@ -141,24 +141,15 @@
             <Border x:Name="Rail" Grid.Column="1" Background="Transparent">
                 <DockPanel x:Name="RailLayout">
                     <StackPanel x:Name="RailHeader" DockPanel.Dock="Top">
-                        <Thumb x:Name="DragHandle" Height="22" Cursor="SizeAll" DragStarted="DockDragStarted" DragDelta="DockDragDelta" DragCompleted="DockDragCompleted" ToolTip="ドラッグして配置">
-                            <Thumb.Template>
-                                <ControlTemplate>
-                                    <Border Background="White">
-                                        <Path Data="{StaticResource GripIcon}" Width="18" Height="12" Stretch="Uniform" Stroke="#202020" StrokeThickness="1"/>
-                                    </Border>
-                                </ControlTemplate>
-                            </Thumb.Template>
-                        </Thumb>
-                        <TextBlock Text="lr." FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,5"/>
+                        <Thumb x:Name="DragHandle" Height="66" Cursor="SizeAll" local:WidgetMotion.Hover="True" Template="{StaticResource DockHeaderTemplate}" DragStarted="DockDragStarted" DragDelta="DockDragDelta" DragCompleted="DockDragCompleted" ToolTip="ドラッグして配置" AutomationProperties.Name="ウィジェットの移動ハンドル"/>
                     </StackPanel>
                     <StackPanel x:Name="RailActions" DockPanel.Dock="Bottom">
-                        <Button Content="設定" FontSize="11" BorderThickness="0" Padding="4,8" Click="ShowSettings"/>
-                        <Button ToolTip="最小化" AutomationProperties.Name="最小化" Height="28" BorderThickness="0" Padding="4" Click="MinimizeDock">
-                            <Path Data="{StaticResource MinusIcon}" Width="16" Height="16" Stretch="Uniform" Stroke="#202020" StrokeThickness="1.25"/>
+                        <Button ToolTip="設定" AutomationProperties.Name="設定" Height="30" BorderThickness="0" Padding="6" Click="ShowSettings"><local:UiIcon Kind="SettingsIcon" Width="18" Height="18"/></Button>
+                        <Button ToolTip="最小化" AutomationProperties.Name="最小化" Height="30" BorderThickness="0" Padding="6" Click="MinimizeDock">
+                            <Path Data="{StaticResource MinusIcon}" Width="16" Height="16" Stretch="Uniform" Fill="#202020"/>
                         </Button>
-                        <Button ToolTip="非表示" AutomationProperties.Name="非表示" Height="28" BorderThickness="0" Padding="4" Click="HideDock">
-                            <Path Data="{StaticResource CloseIcon}" Width="14" Height="14" Stretch="Uniform" Stroke="#202020" StrokeThickness="1.25"/>
+                        <Button ToolTip="非表示" AutomationProperties.Name="非表示" Height="30" BorderThickness="0" Padding="6" Click="HideDock">
+                            <Path Data="{StaticResource HideIcon}" Width="18" Height="18" Stretch="Uniform" Fill="#202020"/>
                         </Button>
                     </StackPanel>
                     <ScrollViewer x:Name="RailScroll" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Hidden" PreviewMouseWheel="RailMouseWheel">
@@ -175,17 +166,9 @@
                     <ColumnDefinition x:Name="MiniFirstCol" Width="*"/>
                     <ColumnDefinition x:Name="MiniSecondCol" Width="0"/>
                 </Grid.ColumnDefinitions>
-                <Thumb x:Name="MiniDragHandle" Cursor="SizeAll" DragStarted="DockDragStarted" DragDelta="DockDragDelta" DragCompleted="DockDragCompleted">
-                    <Thumb.Template>
-                        <ControlTemplate>
-                            <Border Background="White">
-                                <Path Data="{StaticResource GripIcon}" Width="16" Height="12" Stretch="Uniform" Stroke="#202020" StrokeThickness="1"/>
-                            </Border>
-                        </ControlTemplate>
-                    </Thumb.Template>
-                </Thumb>
+                <Thumb x:Name="MiniDragHandle" Cursor="SizeAll" local:WidgetMotion.Hover="True" Template="{StaticResource CompactGripTemplate}" DragStarted="DockDragStarted" DragDelta="DockDragDelta" DragCompleted="DockDragCompleted" AutomationProperties.Name="最小化タブの移動ハンドル"/>
                 <Button x:Name="MiniRestore" Grid.Row="1" ToolTip="Lateraroot を戻す" AutomationProperties.Name="Lateraroot を戻す" BorderThickness="0" Padding="0" Click="RestoreDockClick">
-                    <Path Data="{StaticResource ArrowOut}" Width="16" Height="16" Stretch="Uniform" Stroke="#202020" StrokeThickness="1.2"/>
+                    <Path Data="{StaticResource ArrowOut}" Width="16" Height="16" Stretch="Uniform" Fill="#202020"/>
                 </Button>
             </Grid>
         </Grid>

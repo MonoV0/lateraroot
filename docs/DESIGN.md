@@ -31,13 +31,16 @@ Lateraroot is a Windows desktop-customization utility. Its primary objects are i
 - Enter: 260ms opacity plus 320ms ease-out translation, maximum 12 DIP. Visible file cells arrive from the docked edge at 24ms intervals, capped at seven delays.
 - Hover: 180ms subtle ink state; exit: 140ms. No width/height tween, perpetual animation or ambient movement.
 - Re-entry cancels a pending close. A foreground change, hide or settings change cancels stale completion callbacks.
-- Windows client-area-animation preference and an explicit reduced-motion setting produce the same final state immediately.
+- Motion is enabled by default, including when Windows client-area animation is off. The explicit reduced-motion option always wins; following Windows is a separate opt-in preference. The application never edits OS preferences. Verification exercises the normal policy without forcing animations on.
+- Stagger delays are keyframe holds from opacity zero, established synchronously. Newly realized cells may join the current opening sequence for 550ms; later scrolling does not replay it. Minimize/hide completion is ticketed so rapid restore cannot trigger a stale hide; disabling motion completes an active exit immediately.
 - Native recycling rows realize visible files only. Icons are loaded by realized bindings and cached with a cap. Scrolling does not replay entry choreography.
 - Mouse hover and click both open a widget. Keyboard focus, Ctrl+F, Escape, Page Up/Down and numeric edge/position settings provide alternatives to gestures.
 
 ## Review gates
 
 Actual tile bounds must remain square, pointer and keyboard targets must agree, sparse grid areas must stay transparent, file name contrast must remain readable, interrupted animation must leave no invisible active surface, and large lists must retain bounded realized containers. Rendering snapshots verify final and intermediate states; they are app-rendered previews, not captures of a user's desktop.
+
+The compact header is one 66-DIP glass drag control with an integrated text mark and Flaticon grip. It has no opaque system Thumb background. Locked handles show a lock and normal pointer. Compact genre names use balanced two-line labels; the default seven categories fit between the header and three 30-DIP action buttons. UI icons use 13 compiled **Uicons by Flaticon Bold Rounded** vectors; attribution and separate licensing are in Settings and THIRD_PARTY_NOTICES. The original icon font is not bundled and runtime never fetches icons.
 
 ## Glass material and genre editing (v0.5)
 

@@ -4,6 +4,7 @@
 .vs/
 .idea/
 artifacts/
+src/Lateraroot/Generated/
 *.user
 *.log
 .DS_Store

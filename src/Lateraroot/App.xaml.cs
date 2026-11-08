@@ -88,9 +88,10 @@ public partial class App : Application
 
     private void AppearanceChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(SystemParameters.HighContrast)) return;
+        if (e.PropertyName is not (nameof(SystemParameters.HighContrast) or nameof(SystemParameters.ClientAreaAnimation))) return;
         Dispatcher.BeginInvoke(() =>
         {
+            foreach (MainWindow window in Windows.OfType<MainWindow>()) window.RefreshMotionPolicy();
             foreach (Window window in Windows)
                 if (window is SettingsWindow settings) settings.ApplyTransparency();
                 else GlassSurface.SetReduced(window, Settings.ReduceTransparency || SystemParameters.HighContrast);
