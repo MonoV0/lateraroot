@@ -40,7 +40,7 @@ Lateraroot is a Windows desktop-customization utility. Its primary objects are i
 
 Actual tile bounds must remain square, pointer and keyboard targets must agree, sparse grid areas must stay transparent, file name contrast must remain readable, interrupted animation must leave no invisible active surface, and large lists must retain bounded realized containers. Rendering snapshots verify final and intermediate states; they are app-rendered previews, not captures of a user's desktop.
 
-The compact header is one 66-DIP glass drag control with an integrated text mark and Flaticon grip. It has no opaque system Thumb background. Locked handles show a lock and normal pointer. Compact genre names use balanced two-line labels; the default seven categories fit between the header and three 30-DIP action buttons. UI icons use 13 compiled **Uicons by Flaticon Bold Rounded** vectors; attribution and separate licensing are in Settings and THIRD_PARTY_NOTICES. The original icon font is not bundled and runtime never fetches icons.
+The compact header is one 66-DIP glass drag control with an integrated text mark and Flaticon grip. It has no opaque system Thumb background. Locked handles show a lock and normal pointer. Compact genre names use balanced two-line labels; the default seven categories fit between the header and three 30-DIP action buttons. UI icons use 13 compiled **Uicons by Flaticon Thin Rounded** vectors; attribution and separate licensing are in Settings and THIRD_PARTY_NOTICES. The original icon font is not bundled and runtime never fetches icons.
 
 ## Glass material and genre editing (v0.5)
 
