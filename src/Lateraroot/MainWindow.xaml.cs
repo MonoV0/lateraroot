@@ -43,7 +43,8 @@ public partial class MainWindow : Window
         InitializeComponent();
         ShowInTaskbar = Host.IsSandbox;
         OrderBox.SelectedIndex = (int)Host.Settings.Order;
-        closeTimer.Tick += (_, _) => { closeTimer.Stop(); if (!IsMouseOver && !desktopEdge.IsMouseOver && !pinned && modalDepth == 0 && !busy && !dragging) Collapse(); };
+        closeTimer.Tick += (_, _) => { closeTimer.Stop(); if (!IsMouseOver && !desktopEdge.IsMouseOver && !IsKeyboardFocusWithin && !pinned && modalDepth == 0 && !busy && !dragging) Collapse(); };
+        Deactivated += (_, _) => { if (ready && expanded && !pinned && modalDepth == 0 && !busy) WindowLeave(this, null!); };
         refreshTimer.Tick += (_, _) => { refreshTimer.Stop(); if (!busy && Host.Settings.Visibility != DockVisibility.Hidden) RefreshFiles(); };
         tray = new Forms.NotifyIcon { Icon = System.Drawing.SystemIcons.Application, Text = "Lateraroot", Visible = true };
         var menu = new Forms.ContextMenuStrip();
