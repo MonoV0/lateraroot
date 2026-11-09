@@ -56,6 +56,8 @@ public partial class MainWindow
                     Check(contrast >= 4.5, $"Glass text contrast {tint}, y={y}, backdrop={backdrop}");
                 }
             }
+            // A real pointer can hover the rail while this isolated fixture starts.
+            expanded = pinned = false; ApplyPresentation(); UpdateLayout();
             Check(!expanded && Math.Abs(ActualWidth - 68) < 1, "Compact access remains available");
             foreach (double scale in new[] { 1d, 1.5, 2 })
             {
@@ -299,6 +301,7 @@ public partial class MainWindow
             await RecordMotion(); WidgetMotion.TestOverride = false;
             Check(File.Exists(Path.Combine(output, "motion.gif")), "Rendered animation preview is available");
             Check(Host.Windows.Count == 2, "Only two reusable presentation windows");
+            await VerifyThemeAsync(Check, Capture);
             SaveSettings(); JsonStore.Write(Path.Combine(output, "result.json"), new { Passed = true, Checks = checks });
             Host.Trace("UI verification passed: " + checks.Count); Host.Shutdown(0);
         }

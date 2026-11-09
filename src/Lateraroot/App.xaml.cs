@@ -50,6 +50,7 @@ public partial class App : Application
                 if (File.Exists(SettingsPath)) File.Copy(SettingsPath, backup, false);
                 Settings = new(); warning = "設定ファイルを読み込めなかったため、元の設定を .invalid ファイルに保存して初期設定で起動しました。";
             }
+            ThemePalette.Apply(Settings.Theme);
             if (IsSandbox && e.Args.Contains("--demo")) CreateDemo();
             Library = new DesktopLibrary(DataDirectory, DesktopDirectory, IsSandbox ? null : Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory));
             Trace("Library initialized");
@@ -91,9 +92,10 @@ public partial class App : Application
         if (e.PropertyName is not (nameof(SystemParameters.HighContrast) or nameof(SystemParameters.ClientAreaAnimation))) return;
         Dispatcher.BeginInvoke(() =>
         {
+            ThemePalette.Apply(Settings.Theme);
             foreach (MainWindow window in Windows.OfType<MainWindow>()) window.RefreshMotionPolicy();
             foreach (Window window in Windows)
-                if (window is SettingsWindow settings) settings.ApplyTransparency();
+                if (window is SettingsWindow settings) { settings.ApplyTransparency(); settings.ApplyThemePreview(); }
                 else GlassSurface.SetReduced(window, Settings.ReduceTransparency || SystemParameters.HighContrast);
         });
     }

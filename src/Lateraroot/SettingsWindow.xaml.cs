@@ -33,6 +33,9 @@ public partial class SettingsWindow : Window
         ReduceMotionBox.IsChecked = draft.ReduceMotion; FollowSystemBox.IsChecked = draft.FollowSystemAnimations;
         TransparencyBox.IsChecked = draft.ReduceTransparency; UpdatesBox.IsChecked = draft.CheckForUpdates;
         LockPositionBox.IsChecked = draft.LockPosition;
+        ThemeBox.SelectedIndex = (int)draft.Theme;
+        ApplyThemePreview();
+        SourceInitialized += (_, _) => ApplyThemePreview();
         double scale = WindowPlacement.Scale(this, WindowPlacement.Screen);
         MaxHeight = Math.Max(340, WindowPlacement.Screen.WorkingArea.Height / scale - 24);
         MinHeight = Math.Min(MinHeight, MaxHeight); Height = Math.Min(Height, MaxHeight);
@@ -155,6 +158,12 @@ public partial class SettingsWindow : Window
         try { Process.Start(new ProcessStartInfo(App.Current.Library.VaultPath) { UseShellExecute = true }); }
         catch (System.ComponentModel.Win32Exception ex) { SaveError.Text = ex.Message; }
     }
+    private void ThemeChanged(object sender, SelectionChangedEventArgs e) { if (!loading) ApplyThemePreview(); }
+    internal void ApplyThemePreview()
+    {
+        var theme = ThemeBox.SelectedIndex == 1 ? ColorTheme.Dark : ColorTheme.Light;
+        ThemePalette.Fill(Resources, theme); ThemePalette.TitleBar(this, theme);
+    }
     private void SaveSettings(object sender, RoutedEventArgs e)
     {
         try { SaveDraft(); DialogResult = true; }
@@ -178,12 +187,13 @@ public partial class SettingsWindow : Window
         draft.ReduceMotion = ReduceMotionBox.IsChecked == true; draft.FollowSystemAnimations = FollowSystemBox.IsChecked == true;
         draft.ReduceTransparency = TransparencyBox.IsChecked == true; draft.CheckForUpdates = UpdatesBox.IsChecked == true;
         draft.LockPosition = LockPositionBox.IsChecked == true;
+        draft.Theme = ThemeBox.SelectedIndex == 1 ? ColorTheme.Dark : ColorTheme.Light;
         bool startupChanged = !App.Current.IsSandbox && (StartupBox.IsChecked == true) != startupWasEnabled;
         draft.Validate();
         if (startupChanged) SetStartup(StartupBox.IsChecked == true);
         try { JsonStore.Write(App.Current.SettingsPath, draft); }
         catch { if (startupChanged) SetStartup(startupWasEnabled); throw; }
-        App.Current.Settings = JsonStore.Clone(draft); startupWasEnabled = StartupBox.IsChecked == true;
+        App.Current.Settings = JsonStore.Clone(draft); ThemePalette.Apply(draft.Theme); startupWasEnabled = StartupBox.IsChecked == true;
     }
     private static bool StartupEnabled()
     {

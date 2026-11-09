@@ -58,7 +58,8 @@ internal sealed class DesktopEdgeWindow : Window
             root.Children.Add(button); cells.Add(button);
         }
         var utility = new Grid { Background = Brushes.Transparent };
-        utility.Children.Add(new GlassSurface { Background = Brushes.White, IsHitTestVisible = false });
+        var utilitySurface = new GlassSurface { IsHitTestVisible = false };
+        utilitySurface.SetResourceReference(BackgroundProperty, "Surface"); utility.Children.Add(utilitySurface);
         grip = new Thumb { Height = 22, VerticalAlignment = VerticalAlignment.Top, Cursor = System.Windows.Input.Cursors.SizeAll };
         grip.Template = (ControlTemplate)App.Current.FindResource("CompactGripTemplate"); WidgetMotion.SetHover(grip, true);
         grip.DragStarted += dragStart; grip.DragDelta += dragDelta; grip.DragCompleted += dragEnd;

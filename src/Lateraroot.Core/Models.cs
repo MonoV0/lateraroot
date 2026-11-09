@@ -2,6 +2,7 @@ namespace Lateraroot.Core;
 
 public enum DockEdge { Right, Left, Top, Bottom }
 public enum DockVisibility { Visible, Minimized, Hidden }
+public enum ColorTheme { Light, Dark }
 public enum FileOrder { Name, Modified, Type, Size }
 public enum GenreIcon { Auto, Image, Document, Media, Archive, Game, Shortcut, Folder, Other }
 
@@ -32,6 +33,7 @@ public sealed class StackRule : System.ComponentModel.INotifyPropertyChanged
 
 public sealed class AppSettings
 {
+    public ColorTheme Theme { get; set; } = ColorTheme.Light;
     public DockEdge Edge { get; set; } = DockEdge.Right;
     public FileOrder Order { get; set; } = FileOrder.Name;
     public bool? SortDescending { get; set; }
@@ -81,6 +83,7 @@ public sealed class AppSettings
     public void Validate()
     {
         if (!Enum.IsDefined(Edge) || !Enum.IsDefined(Order) || !Enum.IsDefined(Visibility)) throw new InvalidDataException("配置または並び順が不正です。");
+        if (!Enum.IsDefined(Theme)) Theme = ColorTheme.Light;
         DockOffset = double.IsFinite(DockOffset) ? Math.Clamp(DockOffset, 0, 1) : 0.5;
         TileSize = (int)Math.Round(Math.Clamp(TileSize, 72, 112) / 8d) * 8;
         if (Stacks is null || Stacks.Count is < 1 or > 16) throw new InvalidDataException("スタックは1〜16個にしてください。");

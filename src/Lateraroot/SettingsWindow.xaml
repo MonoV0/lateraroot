@@ -1,9 +1,9 @@
 <?xml version="1.0" ?>
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Lateraroot" x:Class="Lateraroot.SettingsWindow" Title="Lateraroot — 設定" Width="960" Height="790" MinWidth="760" MinHeight="560" Style="{StaticResource {x:Type Window}}" Background="#F5F5F7" WindowStartupLocation="CenterScreen" ShowInTaskbar="True" Topmost="True">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Lateraroot" x:Class="Lateraroot.SettingsWindow" Title="Lateraroot — 設定" Width="960" Height="790" MinWidth="760" MinHeight="560" Style="{StaticResource {x:Type Window}}" Background="{DynamicResource Canvas}" WindowStartupLocation="CenterScreen" ShowInTaskbar="True" Topmost="True">
     <Window.Resources>
         <local:ColorInkConverter x:Key="ColorInk"/>
         <Style TargetType="TabItem">
-            <Setter Property="Foreground" Value="#171717"/>
+            <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
             <Setter Property="Margin" Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -13,11 +13,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="TabBody" Property="Background" Value="#171717"/>
-                                <Setter Property="Foreground" Value="White"/>
+                                <Setter TargetName="TabBody" Property="Background" Value="{DynamicResource Ink}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource AccentInk}"/>
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="TabBody" Property="BorderBrush" Value="#8E8E93"/>
+                                <Setter TargetName="TabBody" Property="BorderBrush" Value="{DynamicResource Muted}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -36,14 +36,14 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Row" Property="Background" Value="White"/>
-                                <Setter TargetName="Row" Property="BorderBrush" Value="#454545"/>
+                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource Surface}"/>
+                                <Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource Stroke}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Row" Property="Background" Value="#E9E9ED"/>
+                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource Hover}"/>
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Row" Property="BorderBrush" Value="#171717"/>
+                                <Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource Ink}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -60,17 +60,17 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Grid>
-                            <Border x:Name="Outline" BorderBrush="#CCCCD0" BorderThickness="1" CornerRadius="12"/>
+                            <Border x:Name="Outline" BorderBrush="{DynamicResource Stroke}" BorderThickness="1" CornerRadius="12"/>
                             <Border Background="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" CornerRadius="8" Margin="6"/>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Outline" Property="BorderBrush" Value="Black"/>
+                                <Setter TargetName="Outline" Property="BorderBrush" Value="{DynamicResource Ink}"/>
                                 <Setter TargetName="Outline" Property="BorderThickness" Value="2"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Outline" Property="BorderBrush" Value="Black"/>
+                                <Setter TargetName="Outline" Property="BorderBrush" Value="{DynamicResource Ink}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -86,13 +86,13 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <StackPanel Margin="0,0,0,22">
-            <TextBlock Text="LATERAROOT / PREFERENCES" FontSize="10" Foreground="{StaticResource Muted}"/>
+            <TextBlock Text="LATERAROOT / PREFERENCES" FontSize="10" Foreground="{DynamicResource Muted}"/>
             <TextBlock Text="自分のデスクトップに。" FontSize="25" Margin="0,8,0,6"/>
-            <TextBlock Text="ジャンルを選んで、名前・色・分類を決めます。変更は「保存する」で反映されます。" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+            <TextBlock Text="ジャンルを選んで、名前・色・分類を決めます。変更は「保存する」で反映されます。" Foreground="{DynamicResource Muted}" TextWrapping="Wrap"/>
         </StackPanel>
         <TabControl Grid.Row="1" BorderThickness="0" Background="Transparent" Padding="0">
             <TabItem Header="ジャンルと色">
-                <Grid Margin="0,18,0,0" TextElement.Foreground="{StaticResource Ink}">
+                <Grid Margin="0,18,0,0" TextElement.Foreground="{DynamicResource Ink}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="230"/>
                         <ColumnDefinition Width="24"/>
@@ -105,7 +105,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-                        <TextBlock Text="ジャンル一覧 · 上から順に分類" Foreground="{StaticResource Muted}" FontSize="11" Margin="4,0,0,12"/>
+                        <TextBlock Text="ジャンル一覧 · 上から順に分類" Foreground="{DynamicResource Muted}" FontSize="11" Margin="4,0,0,12"/>
                         <ListBox x:Name="RulesList" Grid.Row="1" BorderThickness="0" Background="Transparent" ItemContainerStyle="{StaticResource GenreItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="GenreSelected" AutomationProperties.Name="編集するジャンル">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
@@ -114,10 +114,10 @@
                                             <ColumnDefinition Width="32"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Border Width="22" Height="22" Background="{Binding Color}" BorderBrush="#BBBBBF" BorderThickness="1" CornerRadius="7" VerticalAlignment="Center"/>
+                                        <Border Width="22" Height="22" Background="{Binding Color}" BorderBrush="{DynamicResource Stroke}" BorderThickness="1" CornerRadius="7" VerticalAlignment="Center"/>
                                         <StackPanel Grid.Column="1">
                                             <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="13"/>
-                                            <TextBlock Text="{Binding Color}" Foreground="{StaticResource Muted}" FontSize="10" Margin="0,3,0,0"/>
+                                            <TextBlock Text="{Binding Color}" Foreground="{DynamicResource Muted}" FontSize="10" Margin="0,3,0,0"/>
                                         </StackPanel>
                                     </Grid>
                                 </DataTemplate>
@@ -135,7 +135,7 @@
                             <Button x:Name="RemoveButton" Grid.Column="2" Content="削除" Click="RemoveRule" ToolTip="未分類用のジャンルは残します"/>
                         </Grid>
                     </Grid>
-                    <Border Grid.Column="2" Background="White" CornerRadius="20" Padding="24,20">
+                    <Border Grid.Column="2" Background="{DynamicResource Surface}" CornerRadius="20" Padding="24,20">
                         <ScrollViewer x:Name="GenreScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
                             <StackPanel Margin="0,0,18,0">
                                 <Grid Margin="0,0,0,14">
@@ -146,7 +146,7 @@
                                     <StackPanel Margin="0,0,20,0">
                                         <TextBlock Text="ジャンル名" Margin="0,2,0,8"/>
                                         <TextBox x:Name="NameBox" MaxLength="24" Text="{Binding SelectedItem.Name, ElementName=RulesList, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="ジャンル名"/>
-                                        <TextBlock Text="24文字まで。ファイルは移動せず再分類します。" FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                        <TextBlock Text="24文字まで。ファイルは移動せず再分類します。" FontSize="11" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                                     </StackPanel>
                                     <local:GlassSurface x:Name="SquarePreview" Grid.Column="1" Width="104" Height="104" HorizontalAlignment="Right" Background="{Binding SelectedItem.Color,ElementName=RulesList}">
                                         <Grid Margin="14" TextElement.Foreground="{Binding SelectedItem.Color,ElementName=RulesList,Converter={StaticResource ColorInk}}">
@@ -173,10 +173,10 @@
                                     <Button Content="ほかの色を選ぶ…" Click="ChooseCustomColor" Margin="0,0,12,0"/>
                                     <TextBox x:Name="ColorBox" Width="112" MaxLength="7" TextChanged="ColorEdited" AutomationProperties.Name="カラーコード #RRGGBB" ToolTip="#RRGGBB形式でも入力できます"/>
                                 </WrapPanel>
-                                <TextBlock x:Name="ColorError" Foreground="#A32626" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                <TextBlock Text="白・黒を標準に、好きな色を選べます。文字色は自動で調整します。" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,16"/>
+                                <TextBlock x:Name="ColorError" Foreground="{DynamicResource Error}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                <TextBlock Text="白・黒を標準に、好きな色を選べます。文字色は自動で調整します。" Foreground="{DynamicResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,16"/>
                                 <CheckBox x:Name="IconOnlyBox" Content="すべてのジャンルをアイコンだけで表示" Checked="IconAppearanceChanged" Unchecked="IconAppearanceChanged"/>
-                                <TextBlock Text="名前はホバーで確認できます。アイコンはジャンルごとに選べます。" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,0,0,8"/>
+                                <TextBlock Text="名前はホバーで確認できます。アイコンはジャンルごとに選べます。" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,0,0,8"/>
                                 <ComboBox x:Name="GenreIconBox" DisplayMemberPath="Label" SelectedValuePath="Value" SelectionChanged="GenreIconChanged" AutomationProperties.Name="ジャンルのアイコン" Margin="0,0,0,16"/>
                                 <TextBlock Text="このジャンルに表示するもの" Margin="0,0,0,8"/>
                                 <ComboBox x:Name="KindBox" SelectionChanged="KindChanged" AutomationProperties.Name="分類方法">
@@ -186,21 +186,21 @@
                                     <ComboBoxItem Content="ゲーム · ショートカットから自動判定"/>
                                 </ComboBox>
                                 <TextBox x:Name="FilterBox" Margin="0,10,0,0" Text="{Binding SelectedItem.Filter,ElementName=RulesList,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="拡張子の分類ルール"/>
-                                <TextBlock x:Name="FilterHint" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,8,0,0"/>
+                                <TextBlock x:Name="FilterHint" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,8,0,0"/>
                             </StackPanel>
                         </ScrollViewer>
                     </Border>
                 </Grid>
             </TabItem>
             <TabItem Header="配置と動作">
-                <Border Background="White" CornerRadius="20" Padding="28,20" Margin="0,18,0,0" TextElement.Foreground="{StaticResource Ink}">
+                <Border Background="{DynamicResource Surface}" CornerRadius="20" Padding="28,20" Margin="0,18,0,0" TextElement.Foreground="{DynamicResource Ink}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <Grid Margin="0,0,0,20">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <StackPanel Margin="0,0,20,0"><TextBlock Text="ファイルの並び順" Margin="0,0,0,8"/><ComboBox x:Name="SortBox" AutomationProperties.Name="ファイルの並び順"><ComboBoxItem Content="名前"/><ComboBoxItem Content="更新日時"/><ComboBoxItem Content="種類"/><ComboBoxItem Content="サイズ"/></ComboBox></StackPanel>
                                 <StackPanel Grid.Column="1"><TextBlock Text="方向" Margin="0,0,0,8"/><ComboBox x:Name="SortDirectionBox" AutomationProperties.Name="並び順の方向"><ComboBoxItem Content="昇順"/><ComboBoxItem Content="降順"/></ComboBox></StackPanel>
-                                <TextBlock Grid.Column="2" Text="右クリックからも変更できます。ジャンルの並びは「ジャンルと色」の上下ボタンで変えます。" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Muted}" Margin="20,20,0,0"/>
+                                <TextBlock Grid.Column="2" Text="右クリックからも変更できます。ジャンルの並びは「ジャンルと色」の上下ボタンで変えます。" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Muted}" Margin="20,20,0,0"/>
                             </Grid>
                             <Grid Margin="0,0,0,20">
                                 <Grid.ColumnDefinitions>
@@ -244,17 +244,22 @@
                                 <StackPanel Grid.Column="1">
                                     <TextBlock Text="端に沿った位置" Margin="0,0,0,16"/>
                                     <Slider x:Name="OffsetBox" Minimum="0" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" AutoToolTipPlacement="BottomRight" AutomationProperties.Name="端に沿った位置"/>
-                                    <TextBlock Text="上・左 ← → 下・右" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,6,0,0"/>
+                                    <TextBlock Text="上・左 ← → 下・右" FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,6,0,0"/>
                                 </StackPanel>
                             </Grid>
                             <CheckBox x:Name="LockPositionBox" Content="配置をロック（ドラッグ移動を無効にする）"/>
-                            <TextBlock Text="画面の端・ディスプレイ・位置は、この設定画面から変更できます。" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,16" TextWrapping="Wrap"/>
+                            <TextBlock Text="画面の端・ディスプレイ・位置は、この設定画面から変更できます。" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,0,0,16" TextWrapping="Wrap"/>
                             <TextBlock Text="見た目とアクセシビリティ" FontSize="16" Margin="0,0,0,8"/>
+                            <TextBlock Text="カラーモード" Margin="0,8,0,8"/>
+                            <ComboBox x:Name="ThemeBox" Width="200" HorizontalAlignment="Left" SelectionChanged="ThemeChanged" AutomationProperties.Name="カラーモード">
+                                <ComboBoxItem Content="ライト"/><ComboBoxItem Content="ダーク"/>
+                            </ComboBox>
+                            <TextBlock Text="この画面で確認できます。保存すると全体に反映し、次回起動時も引き継ぎます。ジャンルの色は変わりません。" Foreground="{DynamicResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,12"/>
                             <CheckBox x:Name="TransparencyBox" Content="透明効果を減らす" Checked="TransparencyChanged" Unchecked="TransparencyChanged"/>
-                            <TextBlock Text="ガラスを不透明にして読みやすくします。Windowsのハイコントラスト設定にも従います。" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"/>
+                            <TextBlock Text="ガラスを不透明にして読みやすくします。Windowsのハイコントラスト設定にも従います。" Foreground="{DynamicResource Muted}" FontSize="11" TextWrapping="Wrap"/>
                             <CheckBox x:Name="ReduceMotionBox" Content="動きを減らす" ToolTip="Laterarootの動きを止め、すぐに表示を切り替えます"/>
                             <CheckBox x:Name="FollowSystemBox" Content="Windowsのアニメーション設定に合わせる"/>
-                            <TextBlock Text="初期設定ではLaterarootのアニメーションを有効にします。「動きを減らす」を選ぶと常に停止します。" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"/>
+                            <TextBlock Text="初期設定ではLaterarootのアニメーションを有効にします。「動きを減らす」を選ぶと常に停止します。" Foreground="{DynamicResource Muted}" FontSize="11" TextWrapping="Wrap"/>
                             <Separator Margin="0,16"/>
                             <CheckBox x:Name="PublicBox" Content="共有デスクトップも表示する（移動しません）"/>
                             <CheckBox x:Name="StartupBox" Content="サインイン時に起動する"/>
@@ -265,7 +270,7 @@
                 </Border>
             </TabItem>
         </TabControl>
-        <TextBlock x:Name="SaveError" Grid.Row="2" Foreground="#A32626" TextWrapping="Wrap" Margin="0,12,0,0"/>
+        <TextBlock x:Name="SaveError" Grid.Row="2" Foreground="{DynamicResource Error}" TextWrapping="Wrap" Margin="0,12,0,0"/>
         <Grid Grid.Row="3" Margin="0,16,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -273,7 +278,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock x:Name="SandboxLabel" FontSize="10" Foreground="{StaticResource Muted}"/>
+                <TextBlock x:Name="SandboxLabel" FontSize="10" Foreground="{DynamicResource Muted}"/>
                 <WrapPanel>
                     <Button Content="更新を確認 ↗" Click="OpenUpdates" Padding="0,7" Background="Transparent" FontSize="11" Margin="0,0,16,0"/>
                     <Button Content="収納フォルダー ↗" Click="OpenStorage" Padding="0,7" Background="Transparent" FontSize="11"/>
@@ -281,7 +286,7 @@
                 <Button x:Name="IconCredits" Content="Uicons by Flaticon" Click="OpenIconCredits" HorizontalAlignment="Left" Padding="0,2" Background="Transparent" FontSize="10" ToolTip="UIアイコンの提供元とライセンス"/>
             </StackPanel>
             <Button Grid.Column="1" Content="キャンセル" IsCancel="True" Padding="20,10" Margin="8,0"/>
-            <Button x:Name="SaveButton" Grid.Column="2" Content="保存する" Click="SaveSettings" IsDefault="True" Padding="24,10" Background="#171717" Foreground="White"/>
+            <Button x:Name="SaveButton" Grid.Column="2" Content="保存する" Click="SaveSettings" IsDefault="True" Padding="24,10" Background="{DynamicResource Accent}" Foreground="{DynamicResource AccentInk}"/>
         </Grid>
     </Grid>
 </Window>

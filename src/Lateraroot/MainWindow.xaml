@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Lateraroot.MainWindow" Title="Lateraroot" Style="{StaticResource {x:Type Window}}" Width="68" Height="620" WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent" ShowInTaskbar="False" Topmost="True" ShowActivated="False" MouseEnter="WindowEnter" MouseLeave="WindowLeave" PreviewKeyDown="WindowKeyDown">
-    <local:GlassSurface xmlns:local="clr-namespace:Lateraroot" x:Name="Frame" Inset="0" CornerRadius="20" Background="White" BorderBrush="#D0D0D0" BorderThickness="1">
+    <local:GlassSurface xmlns:local="clr-namespace:Lateraroot" x:Name="Frame" Inset="0" CornerRadius="20" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Stroke}" BorderThickness="1">
         <Grid x:Name="LayoutRoot">
             <Grid.RowDefinitions>
                 <RowDefinition x:Name="FirstRow" Height="*"/>
@@ -26,13 +26,13 @@
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                         <Button x:Name="PinButton" Content="固定" ToolTip="開いたままにする" AutomationProperties.Name="開いたままにする" Click="TogglePin" Padding="8,6" BorderThickness="0" Background="Transparent"/>
                         <Button ToolTip="閉じる (Esc)" AutomationProperties.Name="パネルを閉じる" Click="ClosePanel" Width="36" Height="36" Padding="8" BorderThickness="0">
-                            <Path Data="{StaticResource CloseIcon}" Width="16" Height="16" Stretch="Uniform" Fill="#202020"/>
+                            <Path Data="{StaticResource CloseIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource Ink}"/>
                         </Button>
                     </StackPanel>
                     <StackPanel>
-                        <TextBlock Text="LATERAROOT / FILES" FontSize="10" Foreground="{StaticResource Muted}" Margin="0,0,0,10"/>
+                        <TextBlock Text="LATERAROOT / FILES" FontSize="10" Foreground="{DynamicResource Muted}" Margin="0,0,0,10"/>
                         <TextBlock x:Name="StackTitle" FontSize="24"/>
-                        <TextBlock x:Name="StackSubtitle" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,8,0,0"/>
+                        <TextBlock x:Name="StackSubtitle" Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,8,0,0"/>
                     </StackPanel>
                 </DockPanel>
                 <Grid x:Name="SearchTools" Grid.Row="1" Grid.Column="1" Margin="0,0,0,20">
@@ -42,7 +42,7 @@
                         <ColumnDefinition Width="72"/>
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="SearchBox" TextChanged="SearchChanged" AutomationProperties.Name="ファイルを検索" ToolTip="ファイル名で検索" Margin="0,0,8,0"/>
-                    <TextBlock x:Name="SearchHint" Text="ファイルを検索" Foreground="{StaticResource Muted}" Margin="10,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                    <TextBlock x:Name="SearchHint" Text="ファイルを検索" Foreground="{DynamicResource Muted}" Margin="10,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
                     <ComboBox x:Name="OrderBox" Grid.Column="1" SelectionChanged="OrderChanged" AutomationProperties.Name="並び順">
                         <ComboBoxItem Content="名前順"/>
                         <ComboBoxItem Content="更新日時"/>
@@ -112,13 +112,13 @@
                     </ListBox>
                     <StackPanel x:Name="EmptyState" VerticalAlignment="Center" Margin="12">
                         <TextBlock x:Name="EmptyTitle" Text="ファイルはありません" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock x:Name="EmptyDescription" Text="分類ルールは設定から変更できます。" Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,8,0,0"/>
+                        <TextBlock x:Name="EmptyDescription" Text="分類ルールは設定から変更できます。" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,8,0,0"/>
                     </StackPanel>
                 </Grid>
                 <Button x:Name="ExpandAllButton" Grid.RowSpan="5" VerticalAlignment="Top" Click="ToggleAllFiles" Style="{StaticResource SquareButton}" Visibility="Collapsed" ToolTip="すべて表示 / ホイールまたは Page Down でスクロール" AutomationProperties.Name="ウィジェットを展開または収納">
                     <Grid Margin="12">
                         <TextBlock x:Name="WidgetToggleCount" Text="00" FontSize="10" VerticalAlignment="Top"/>
-                        <Path x:Name="WidgetToggleArrow" Data="{StaticResource ArrowIn}" Fill="#202020" Width="24" Height="24" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        <Path x:Name="WidgetToggleArrow" Data="{StaticResource ArrowIn}" Fill="{DynamicResource Ink}" Width="24" Height="24" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Center"/>
                         <TextBlock x:Name="WidgetToggleLabel" Text="OPEN" FontSize="10" VerticalAlignment="Bottom"/>
                     </Grid>
                     <Button.ContextMenu>
@@ -128,17 +128,17 @@
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
-                <Border x:Name="Footer" Grid.Row="3" Grid.Column="1" BorderBrush="#D4D4D4" BorderThickness="0,1,0,0" Padding="0,20,0,0" Margin="0,20,0,0">
+                <Border x:Name="Footer" Grid.Row="3" Grid.Column="1" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0" Padding="0,20,0,0" Margin="0,20,0,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Button x:Name="OrganizeButton" Content="デスクトップを整理" Click="OrganizeDesktop" Foreground="White" Background="#171717" MinHeight="44"/>
+                        <Button x:Name="OrganizeButton" Content="デスクトップを整理" Click="OrganizeDesktop" Foreground="{DynamicResource AccentInk}" Background="{DynamicResource Accent}" MinHeight="44"/>
                         <Button x:Name="RestoreButton" Grid.Column="1" Content="すべて元に戻す" ToolTip="選択ジャンルや検索条件に関係なく、収納したすべての項目を復元します" Click="RestoreStack" Margin="8,0,0,0" MinHeight="44"/>
                     </Grid>
                 </Border>
-                <TextBlock x:Name="StatusText" Grid.Row="4" Grid.Column="1" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                <TextBlock x:Name="StatusText" Grid.Row="4" Grid.Column="1" FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
             </Grid>
             <Border x:Name="Rail" Grid.Column="1" Background="Transparent">
                 <DockPanel x:Name="RailLayout">
@@ -170,7 +170,7 @@
                 </Grid.ColumnDefinitions>
                 <Thumb x:Name="MiniDragHandle" Cursor="SizeAll" local:WidgetMotion.Hover="True" Template="{StaticResource CompactGripTemplate}" DragStarted="DockDragStarted" DragDelta="DockDragDelta" DragCompleted="DockDragCompleted" AutomationProperties.Name="最小化タブの移動ハンドル"/>
                 <Button x:Name="MiniRestore" Style="{StaticResource RailAction}" Height="Auto" Grid.Row="1" ToolTip="Lateraroot を戻す" AutomationProperties.Name="Lateraroot を戻す" Click="RestoreDockClick">
-                    <Path Data="{StaticResource ArrowOut}" Width="16" Height="16" Stretch="Uniform" Fill="#202020"/>
+                    <Path Data="{StaticResource ArrowOut}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource Ink}"/>
                 </Button>
             </Grid>
         </Grid>

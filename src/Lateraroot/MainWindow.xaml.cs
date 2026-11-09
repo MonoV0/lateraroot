@@ -147,7 +147,8 @@ public partial class MainWindow : Window
         System.Windows.Automation.AutomationProperties.SetItemStatus(ExpandAllButton, showAll ? "展開中" : "1行表示");
         PanelHeader.Visibility = SearchTools.Visibility = Footer.Visibility = StatusText.Visibility = widget ? Visibility.Collapsed : Visibility.Visible;
         Panel.Margin = new Thickness(widget ? 0 : 24);
-        Frame.Background = widget ? Brushes.Transparent : Brushes.White;
+        if (widget) Frame.Background = Brushes.Transparent;
+        else Frame.SetResourceReference(BackgroundProperty, "Surface");
         Frame.BorderThickness = new Thickness(widget ? 0 : 1);
         bool controlRight = widget && Host.Settings.Edge == DockEdge.Left;
         WidgetControlColumn.Width = widget && !controlRight ? new GridLength(TileSide) : new GridLength(widget ? 1 : 0, GridUnitType.Star);
@@ -426,7 +427,7 @@ public partial class MainWindow : Window
         MiniSecondRow.Height = vertical ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         Grid.SetRow(MiniRestore, vertical ? 1 : 0); Grid.SetColumn(MiniRestore, vertical ? 0 : 1);
         foreach (Button button in StackRail.Children) { button.Width = button.Height = 66; }
-        Frame.Background = Brushes.White;
+        Frame.SetResourceReference(BackgroundProperty, "Surface");
         WindowPlacement.Place(this, rect, scale);
     }
     private void SetDockVisibility(DockVisibility value)

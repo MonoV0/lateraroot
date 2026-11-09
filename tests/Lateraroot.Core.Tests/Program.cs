@@ -14,6 +14,16 @@ var tests = new List<(string Name, Action Run)>
         Equal("好きなジャンル", copy.Stacks[0].Name); Equal("#123456", copy.Stacks[0].Color); True(copy.ReduceTransparency);
         copy.Stacks[0].Color = "#FFFFFF"; Equal("#123456", settings.Stacks[0].Color);
     }),
+    ("Light and dark themes persist without changing genre colors; old settings stay light", () =>
+    {
+        var settings = new AppSettings(); Equal(ColorTheme.Light, settings.Theme);
+        settings.Stacks[0].Color = "#123456"; settings.Theme = ColorTheme.Dark;
+        string file = Path.Combine(root, "theme.json"); JsonStore.Write(file, settings);
+        var copy = JsonStore.Read(file, () => new AppSettings()); copy.Validate();
+        Equal(ColorTheme.Dark, copy.Theme); Equal("#123456", copy.Stacks[0].Color);
+        File.WriteAllText(file, "{}"); Equal(ColorTheme.Light, JsonStore.Read(file, () => new AppSettings()).Theme);
+        copy.Theme = (ColorTheme)999; copy.Validate(); Equal(ColorTheme.Light, copy.Theme);
+    }),
     ("Widget cells remain square, contained and disjoint at every edge and scale", () =>
     {
         foreach (var area in new[] { new DockRect(0, 0, 2560, 1392), new DockRect(-1920, 0, 1920, 1040), new DockRect(0, -1200, 800, 1200) })
