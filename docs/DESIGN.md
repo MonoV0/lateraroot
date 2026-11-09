@@ -44,7 +44,7 @@ The compact header is one 66-DIP glass drag control with an integrated text mark
 
 ## Glass material and genre editing (v0.5)
 
-[Apple's Materials guidance](https://developer.apple.com/design/human-interface-guidelines/materials) informs translucency, restrained color and accessible fallbacks. The normal WPF material uses alpha blending and vector rims. The experimental renderer now samples the real backdrop and applies GPU blur, edge-normal refraction and lighting. It is an independent Windows implementation, not Apple's native material.
+The shared WPF material uses tinted alpha blending, static vector rims and finite hover/entry motion. Background capture, GPU blur, refraction and the dedicated glass preview have been removed. There is no capture-exclusion setting or background-rendering worker.
 
 One `GlassSurface` draws categories, file cells, compact framing, controls and the editor preview. Its frozen brush/pen cache is capped at 64 materials. Tints near the contrast threshold are adjusted conservatively; black/white ink is chosen automatically. Rendered text areas are checked against both black and white backdrops at three vertical positions for ten representative colors (4.5:1 minimum). Empty corners remain alpha-zero. Reduced transparency removes reflections and uses opaque fills. Windows high contrast forces an opaque surface while retaining the chosen tint and automatic contrasting ink; changes are handled by one application-level preference listener.
 
@@ -52,22 +52,8 @@ The default palette alternates white and black. A user's existing colors are pre
 
 The v0.6 file-acquisition/presentation split, shared organizer actions, change-driven refresh and placement lock are documented in [ARCHITECTURE.md](ARCHITECTURE.md). They reuse this material and geometry system.
 
-## Experimental refractive renderer
-
-`DesktopCapture` uses Windows DXGI desktop duplication and D3D11. The desktop frame stays on the GPU; only bounded widget-window rectangles with padding are copied into CPU memory. Dirty/move metadata, pointer-only filtering and frame comparison avoid publishing unchanged images. There is no periodic full-screen CPU screenshot, saved background image or network rendering service.
-
-One `GlassBackdrop` worker serves both presentations with a maximum of 30 updates per second and at most one pending dispatcher delivery. It releases capture resources while no widget needs them. Each `GlassSurface` crops the shared frame and renders `Glass.ps` underneath its foreground child. The PS3 shader combines rounded masks, nine-tap blur, edge-normal displacement, rim lighting and pointer response. Text and icons are rendered separately. Hiding or disabling glass clears cached background pixels; re-enabling requests a fresh stationary frame.
-
-The window uses `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` to prevent sampling itself. **Consequently the widget is absent from screenshots, recording and screen sharing while the effect is enabled.** The Settings toggle restores normal capture behavior when disabled. Unsupported shaders, pre-Windows-10-2004 systems, rotated outputs and capture failures retain the existing material. Reduced transparency and high contrast use opaque surfaces. This is a test renderer: HDR, integrated GPUs and remote sessions need broader validation.
-
-`--demo --verify-glass` compares actual GPU-rendered pixels in an owned synthetic-pattern window. It independently checks refraction and blur, sharp foreground glyph interiors, live background sampling without feedback, changed-background delivery, reduced transparency, stationary re-enable and hide cleanup. Saved test images contain only that controlled scene. Software `RenderTargetBitmap` checks are not treated as proof of PS3 execution. Each installation uses its own GPU; a successful test on one development GPU is not a compatibility or performance guarantee.
-
-`PreviewBuild=true` forces a separate `GlassPreview` profile and read-only file-operation guard, including when launched without arguments. Regular builds leave the experimental effect off by default. No service, third-party renderer or unused quality controls are added.
-
 ## Genre icons and sorting
 
 The development build can replace the category name, ordinal and count with a centered 28-DIP compact / 34-DIP desktop icon. Full names stay in tooltips and accessibility labels. One global switch controls the display and each genre can select an icon or infer it from its classification. Both presentations use the same label builder. The compact rail grows to fit eight or more genres, bounded by the screen's working area; it scrolls when necessary.
 
-File sorting exposes name/date/type/size and ascending/descending through shared right-click actions, settings and the inspector. Genre priority/order remains the existing explicit up/down editor. Game classification is shortcut-metadata based and reuses the same library and rule precedence. It shares the existing catalog and does not require the experimental renderer.
-
-Local verification on 2026-11-09 passed 9/9 physical-GPU checks and 5/5 isolated-preview checks. A 3-second idle sample after warm-up measured 15.6% of one CPU core with zero published frames (not 15.6% of the entire PC). This short controlled-scene measurement is not a general performance claim; further renderer profiling and broader hardware validation remain necessary.
+File sorting exposes name/date/type/size and ascending/descending through shared right-click actions, settings and the inspector. Genre priority/order remains the existing explicit up/down editor. Game classification is shortcut-metadata based and reuses the same library and rule precedence. It reuses the same file catalog without a separate rendering pipeline.

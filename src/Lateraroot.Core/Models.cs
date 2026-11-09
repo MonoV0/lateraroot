@@ -48,7 +48,6 @@ public sealed class AppSettings
     public bool ReduceMotion { get; set; }
     public bool FollowSystemAnimations { get; set; }
     public bool ReduceTransparency { get; set; }
-    public bool LiquidGlass { get; set; }
     public bool LockPosition { get; set; }
     public bool CheckForUpdates { get; set; } = true;
     public List<StackRule> Stacks { get; set; } = Defaults();

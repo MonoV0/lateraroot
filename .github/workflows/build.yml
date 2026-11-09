@@ -21,10 +21,7 @@ jobs:
         shell: pwsh
         run: ./scripts/Prepare-Icons.ps1
       - name: Build
-        # Compile the small project-owned shader; no compiler is shipped with the app.
-        run: |
-          ./scripts/Prepare-Shader.ps1
-          dotnet build src/Lateraroot/Lateraroot.csproj -c Release
+        run: dotnet build src/Lateraroot/Lateraroot.csproj -c Release
       - name: Storage and classification tests
         run: dotnet run --project tests/Lateraroot.Core.Tests -c Release
       - name: Publish portable app
@@ -69,16 +66,6 @@ jobs:
         with:
           name: release-package
           path: artifacts/releases/*
-      - name: Build and verify isolated glass preview
-        shell: pwsh
-        run: |
-          dotnet publish src/Lateraroot/Lateraroot.csproj -c Release -r win-x64 --self-contained true -p:PreviewBuild=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/glass-preview
-          if ($LASTEXITCODE -ne 0) { throw 'Preview build failed' }
-          $testData = Join-Path $env:RUNNER_TEMP "lateraroot-preview-$env:GITHUB_RUN_ID"
-          $app = Start-Process artifacts/glass-preview/Lateraroot.exe -ArgumentList ('--demo --verify-preview --data-dir "' + $testData + '"') -Wait -PassThru -WindowStyle Hidden
-          $result = Get-Content (Join-Path $testData 'preview-result.json') -Raw | ConvertFrom-Json
-          if ($app.ExitCode -ne 0 -or !$result.Passed) { $result | ConvertTo-Json -Depth 5; throw 'Read-only preview verification failed' }
-          Write-Output "$($result.Checks.Count) preview checks passed; GPU rendering is verified separately on a physical GPU."
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')

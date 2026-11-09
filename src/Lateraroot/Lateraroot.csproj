@@ -6,9 +6,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DefineConstants Condition="'$(PreviewBuild)' == 'true'">$(DefineConstants);GLASS_PREVIEW</DefineConstants>
-    <Version>0.8.1</Version>
+    <Version>0.8.2</Version>
     <StartupObject>Lateraroot.Program</StartupObject>
     <AssemblyName>Lateraroot</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -17,7 +15,6 @@
     <ProjectReference Include="../Lateraroot.Core/Lateraroot.Core.csproj" />
     <PackageReference Include="Velopack" Version="1.2.161" />
     <Resource Include="Assets/Fonts/ZenKakuGothicNew-Medium.ttf" />
-    <Resource Include="Assets/Glass.ps" />
     <Content Include="Assets/Fonts/OFL.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <Target Name="RequireUiIcons" BeforeTargets="PrepareForBuild">

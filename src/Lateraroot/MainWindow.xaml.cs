@@ -58,9 +58,6 @@ public partial class MainWindow : Window
     {
         selectedStack = Host.Settings.Stacks[0].Id;
         InitializeComponent();
-        GlassBackdrop.Attach(this);
-        if (Host.IsPreview) Title = "Lateraroot — ガラス テスト版";
-        if (Host.IsPreview) OrganizeButton.IsEnabled = RestoreButton.IsEnabled = false;
         catalog = new(settings => Host.Library.ReadFiles(settings));
         actions = new(SelectStack, OpenSettings, ShowInspector, () => _ = ReloadFilesAsync(), TogglePositionLock,
             () => SetDockVisibility(DockVisibility.Minimized), () => SetDockVisibility(DockVisibility.Hidden),
@@ -71,7 +68,7 @@ public partial class MainWindow : Window
         closeTimer.Tick += (_, _) => { closeTimer.Stop(); if (!IsMouseOver && !desktopEdge.IsMouseOver && !IsKeyboardFocusWithin && !pinned && modalDepth == 0 && !busy && !dragging) Collapse(); };
         Deactivated += (_, _) => { if (ready && expanded && !pinned && modalDepth == 0 && !busy) WindowLeave(this, null!); };
         refreshTimer.Tick += async (_, _) => { refreshTimer.Stop(); if (!busy && Host.Settings.Visibility == DockVisibility.Visible) await RefreshFilesAsync(); };
-        tray = new Forms.NotifyIcon { Icon = System.Drawing.SystemIcons.Application, Text = Host.IsPreview ? "Lateraroot — ガラス テスト版" : "Lateraroot", Visible = true };
+        tray = new Forms.NotifyIcon { Icon = System.Drawing.SystemIcons.Application, Text = "Lateraroot", Visible = true };
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("表示する  (Ctrl+Alt+Space)", null, (_, _) => Dispatcher.Invoke(RestoreDock));
         menu.Items.Add("最小化", null, (_, _) => Dispatcher.Invoke(() => SetDockVisibility(DockVisibility.Minimized)));
@@ -133,7 +130,6 @@ public partial class MainWindow : Window
         RefreshMotionPolicy();
         GlassSurface.SetReduced(this, Host.Settings.ReduceTransparency || SystemParameters.HighContrast);
         GlassSurface.SetReduced(desktopEdge, Host.Settings.ReduceTransparency || SystemParameters.HighContrast);
-        GlassBackdrop.Refresh();
         UpdatePositionLock();
         Topmost = !desktopMode;
         var visibility = Host.Settings.Visibility;
@@ -241,7 +237,7 @@ public partial class MainWindow : Window
             allItems = ordered;
             if (!Host.Settings.Stacks.Any(x => x.Id == selectedStack)) selectedStack = Host.Settings.Stacks[0].Id;
             BuildRail();
-            OrganizeButton.IsEnabled = !Host.IsPreview && !organizePending && allItems.Any(x => x.CanOrganize);
+            OrganizeButton.IsEnabled = !organizePending && allItems.Any(x => x.CanOrganize);
             if (expanded && !previous.SequenceEqual(allItems.Where(i => i.StackId == selectedStack))) { RenderFiles(); PlaceDock(); }
             return true;
         }
@@ -316,7 +312,7 @@ public partial class MainWindow : Window
         EmptyTitle.Text = catalog.IsReading && allItems.Count == 0 ? "ファイルを読み込んでいます…" : SearchBox.Text.Length > 0 ? "一致するファイルはありません" : "ファイルはありません";
         EmptyDescription.Visibility = widget ? Visibility.Collapsed : Visibility.Visible;
         EmptyDescription.Text = SearchBox.Text.Length > 0 ? "別のファイル名で検索してください。" : "分類ルールは設定から変更できます。";
-        RestoreButton.IsEnabled = !Host.IsPreview && Host.Library.HasRecoveryEntries; OrganizeButton.IsEnabled = !Host.IsPreview && !organizePending && allItems.Any(x => x.CanOrganize);
+        RestoreButton.IsEnabled = Host.Library.HasRecoveryEntries; OrganizeButton.IsEnabled = !organizePending && allItems.Any(x => x.CanOrganize);
         ExpandAllButton.Background = DesktopEdgeWindow.ColorBrush(stack.Color);
         ExpandAllButton.Foreground = WidgetToggleArrow.Fill = WidgetVisuals.Ink(ExpandAllButton.Background);
     }
@@ -547,7 +543,6 @@ public partial class MainWindow : Window
 
     private async void OrganizeDesktop(object sender, RoutedEventArgs e)
     {
-        if (Host.IsPreview) return;
         if (busy || organizePending) return;
         organizePending = true; OrganizeButton.IsEnabled = false;
         try
@@ -560,7 +555,7 @@ public partial class MainWindow : Window
             EndModal();
             if (answer == MessageBoxResult.Yes) await RunOperation(() => Host.Library.Organize(items), "収納");
         }
-        finally { organizePending = false; OrganizeButton.IsEnabled = !Host.IsPreview && allItems.Any(x => x.CanOrganize); }
+        finally { organizePending = false; OrganizeButton.IsEnabled = allItems.Any(x => x.CanOrganize); }
     }
 
     private async void RestoreStack(object sender, RoutedEventArgs e)
@@ -571,7 +566,6 @@ public partial class MainWindow : Window
 
     private async Task RunOperation(Func<OperationResult> operation, string verb)
     {
-        if (Host.IsPreview) return;
         if (busy) return;
         busy = true; Panel.IsEnabled = false;
         StatusText.Text = verb + "中…";

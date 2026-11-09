@@ -32,7 +32,6 @@ public partial class SettingsWindow : Window
         SizeBox.SelectedValue = draft.TileSize; OffsetBox.Value = draft.DockOffset;
         ReduceMotionBox.IsChecked = draft.ReduceMotion; FollowSystemBox.IsChecked = draft.FollowSystemAnimations;
         TransparencyBox.IsChecked = draft.ReduceTransparency; UpdatesBox.IsChecked = draft.CheckForUpdates;
-        LiquidGlassBox.IsChecked = draft.LiquidGlass; GlassStatus.Text = GlassBackdrop.Status;
         LockPositionBox.IsChecked = draft.LockPosition;
         double scale = WindowPlacement.Scale(this, WindowPlacement.Screen);
         MaxHeight = Math.Max(340, WindowPlacement.Screen.WorkingArea.Height / scale - 24);
@@ -44,7 +43,7 @@ public partial class SettingsWindow : Window
         PublicBox.IsChecked = draft.IncludePublicDesktop; PublicBox.IsEnabled = !App.Current.IsSandbox;
         startupWasEnabled = !App.Current.IsSandbox && StartupEnabled();
         StartupBox.IsChecked = startupWasEnabled; StartupBox.IsEnabled = !App.Current.IsSandbox;
-        SandboxLabel.Text = App.Current.IsPreview ? "ガラスのテスト版 · デスクトップは読み取り専用。収納・復元は無効です。" : App.Current.IsSandbox ? "デモモード · 実際のデスクトップには触れません" : $"Lateraroot {AppInfo.Version} · MIT / Font: SIL OFL";
+        SandboxLabel.Text = App.Current.IsSandbox ? "デモモード · 実際のデスクトップには触れません" : $"Lateraroot {AppInfo.Version} · MIT / Font: SIL OFL";
         loading = false; RulesList.SelectedIndex = 0; ApplyTransparency();
     }
 
@@ -178,7 +177,6 @@ public partial class SettingsWindow : Window
         draft.Stacks = rules.ToList(); draft.TileSize = (int?)SizeBox.SelectedValue ?? 88; draft.DockOffset = OffsetBox.Value;
         draft.ReduceMotion = ReduceMotionBox.IsChecked == true; draft.FollowSystemAnimations = FollowSystemBox.IsChecked == true;
         draft.ReduceTransparency = TransparencyBox.IsChecked == true; draft.CheckForUpdates = UpdatesBox.IsChecked == true;
-        draft.LiquidGlass = LiquidGlassBox.IsChecked == true;
         draft.LockPosition = LockPositionBox.IsChecked == true;
         bool startupChanged = !App.Current.IsSandbox && (StartupBox.IsChecked == true) != startupWasEnabled;
         draft.Validate();

@@ -250,9 +250,6 @@
                             <CheckBox x:Name="LockPositionBox" Content="配置をロック（ドラッグ移動を無効にする）"/>
                             <TextBlock Text="画面の端・ディスプレイ・位置は、この設定画面から変更できます。" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,16" TextWrapping="Wrap"/>
                             <TextBlock Text="見た目とアクセシビリティ" FontSize="16" Margin="0,0,0,8"/>
-                            <CheckBox x:Name="LiquidGlassBox" Content="背景をぼかし・屈折させるガラス（テスト）"/>
-                            <TextBlock Text="背景はメモリ内でのみ処理します。自己映り込みを防ぐため、使用中のウィジェットは画面キャプチャ・共有に映りません。使えない環境では通常表示に戻ります。" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="GlassStatus" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,4"/>
                             <CheckBox x:Name="TransparencyBox" Content="透明効果を減らす" Checked="TransparencyChanged" Unchecked="TransparencyChanged"/>
                             <TextBlock Text="ガラスを不透明にして読みやすくします。Windowsのハイコントラスト設定にも従います。" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"/>
                             <CheckBox x:Name="ReduceMotionBox" Content="動きを減らす" ToolTip="Laterarootの動きを止め、すぐに表示を切り替えます"/>

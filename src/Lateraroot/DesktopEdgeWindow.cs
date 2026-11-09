@@ -33,7 +33,6 @@ internal sealed class DesktopEdgeWindow : Window
         Title = "Lateraroot — ウィジェット"; Style = (Style)App.Current.FindResource(typeof(Window));
         WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; AllowsTransparency = true; Background = Brushes.Transparent;
         ShowInTaskbar = false; ShowActivated = false; Topmost = false; Content = root;
-        GlassBackdrop.Attach(this);
         MouseEnter += (_, _) => enter(); MouseLeave += (_, _) => leave();
         PreviewKeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.F5) { actions.Refresh(); e.Handled = true; } };
     }
