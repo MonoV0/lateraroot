@@ -184,6 +184,61 @@ var tests = new List<(string Name, Action Run)>
         Equal("nested", File.ReadAllText(Path.Combine(desktop, "project (restored 1)", "inside.txt")));
         Equal(0, new DesktopLibrary(data, desktop).Scan(new()).Count(x => x.IsStored));
     }),
+    ("Storage keeps one readable batch and original sibling names instead of one random folder per item", () =>
+    {
+        var (desktop, data) = Fixture("readable-batch");
+        File.WriteAllText(Path.Combine(desktop, "index.html"), "assets/site.css");
+        Directory.CreateDirectory(Path.Combine(desktop, "assets")); File.WriteAllText(Path.Combine(desktop, "assets", "site.css"), "body{}");
+        var library = new DesktopLibrary(data, desktop); Equal(2, library.Organize(library.Scan(new())).Succeeded);
+        var entries = JsonStore.Read(Path.Combine(data, "library.json"), () => new List<StorageRecord>());
+        Equal(1, entries.Select(r => Path.GetDirectoryName(r.StoredPath)).Distinct().Count());
+        True(entries.All(r => Path.GetFileName(r.StoredPath) == Path.GetFileName(r.OriginalPath)));
+        True(System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(Path.GetDirectoryName(entries[0].StoredPath)!), @"^\d{4}-\d{2}-\d{2}_"));
+        library = new(data, desktop); Equal(2, library.RestoreAll().Succeeded);
+        Equal("body{}", File.ReadAllText(Path.Combine(desktop, "assets", "site.css")));
+        Equal(0, Directory.GetDirectories(Path.Combine(data, "Vault")).Length);
+    }),
+    ("Separate storage batches keep repeated filenames and restore without overwriting", () =>
+    {
+        var (desktop, data) = Fixture("batch-collision"); string path = Path.Combine(desktop, "memo.txt");
+        var library = new DesktopLibrary(data, desktop);
+        File.WriteAllText(path, "first"); library.Organize(library.Scan(new()));
+        File.WriteAllText(path, "second"); library.Organize(library.Scan(new()));
+        var entries = JsonStore.Read(Path.Combine(data, "library.json"), () => new List<StorageRecord>());
+        Equal(2, entries.Select(r => Path.GetDirectoryName(r.StoredPath)).Distinct().Count());
+        Equal(2, new DesktopLibrary(data, desktop).RestoreAll().Succeeded);
+        Equal("first", File.ReadAllText(path)); Equal("second", File.ReadAllText(Path.Combine(desktop, "memo (restored 1).txt")));
+    }),
+    ("Restore all uses the complete journal even when a genre or hidden item is not in the view", () =>
+    {
+        var (desktop, data) = Fixture("restore-all");
+        File.WriteAllText(Path.Combine(desktop, "photo.png"), "image");
+        File.WriteAllText(Path.Combine(desktop, "note.txt"), "document");
+        Directory.CreateDirectory(Path.Combine(desktop, "project")); File.WriteAllText(Path.Combine(desktop, "project", "asset.txt"), "nested");
+        var library = new DesktopLibrary(data, desktop); Equal(3, library.Organize(library.Scan(new())).Succeeded);
+        var record = JsonStore.Read(Path.Combine(data, "library.json"), () => new List<StorageRecord>()).First(r => r.StoredPath.EndsWith("note.txt"));
+        File.SetAttributes(record.StoredPath, FileAttributes.Hidden);
+        True(library.HasRecoveryEntries);
+        var restored = library.RestoreAll(); Equal(3, restored.Succeeded); Equal(0, restored.Errors.Count);
+        Equal("image", File.ReadAllText(Path.Combine(desktop, "photo.png"))); Equal("document", File.ReadAllText(Path.Combine(desktop, "note.txt")));
+        Equal("nested", File.ReadAllText(Path.Combine(desktop, "project", "asset.txt"))); True(!library.HasRecoveryEntries);
+        File.SetAttributes(Path.Combine(desktop, "note.txt"), FileAttributes.Normal);
+    }),
+    ("Restore all retires manually returned entries and reports missing files without dropping history", () =>
+    {
+        var (desktop, data) = Fixture("returned");
+        File.WriteAllText(Path.Combine(desktop, "returned.txt"), "kept");
+        var library = new DesktopLibrary(data, desktop); library.Organize(library.Scan(new()));
+        var records = JsonStore.Read(Path.Combine(data, "library.json"), () => new List<StorageRecord>());
+        File.Move(records[0].StoredPath, records[0].OriginalPath);
+        library = new(data, desktop); var result = library.RestoreAll();
+        Equal(0, result.Succeeded); Equal(0, result.Errors.Count); True(!library.HasRecoveryEntries);
+        Equal("kept", File.ReadAllText(Path.Combine(desktop, "returned.txt")));
+        library.Organize(library.Scan(new())); records = JsonStore.Read(Path.Combine(data, "library.json"), () => new List<StorageRecord>());
+        File.Delete(records[0].StoredPath);
+        result = library.RestoreAll(); Equal(1, result.Errors.Count); True(library.HasRecoveryEntries);
+        Equal(1, JsonStore.Read(Path.Combine(data, "library.json"), () => new List<StorageRecord>()).Count);
+    }),
     ("Locked files report failures without losing originals", () =>
     {
         var (desktop, data) = Fixture("locked"); var path = Path.Combine(desktop, "locked.txt"); File.WriteAllText(path, "safe");
@@ -192,6 +247,20 @@ var tests = new List<(string Name, Action Run)>
         { var result = library.Organize(items); Equal(0, result.Succeeded); Equal(1, result.Errors.Count); }
         Equal("safe", File.ReadAllText(path));
         Equal(1, library.Organize(library.Scan(new())).Succeeded);
+    }),
+    ("A failed first move does not prevent later items from using the readable batch", () =>
+    {
+        var (desktop, data) = Fixture("batch-after-failure");
+        string locked = Path.Combine(desktop, "a.txt"), ready = Path.Combine(desktop, "b.txt");
+        File.WriteAllText(locked, "locked"); File.WriteAllText(ready, "ready");
+        var library = new DesktopLibrary(data, desktop); var items = library.Scan(new());
+        using (var handle = File.Open(locked, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            var result = library.Organize(items); Equal(1, result.Succeeded); Equal(1, result.Errors.Count);
+        }
+        True(File.Exists(locked)); True(!File.Exists(ready));
+        Equal(1, new DesktopLibrary(data, desktop).RestoreAll().Succeeded);
+        Equal("ready", File.ReadAllText(ready));
     }),
     ("Pre-move journal is recoverable after restart", () =>
     {

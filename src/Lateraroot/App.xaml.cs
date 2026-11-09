@@ -17,6 +17,7 @@ public partial class App : Application
     public string DataDirectory { get; private set; } = "";
     public string DesktopDirectory { get; private set; } = "";
     public bool IsSandbox { get; private set; }
+    public bool IsPreview { get; private set; }
     public bool IsVerifying { get; private set; }
     public AppSettings Settings { get; set; } = new();
     public DesktopLibrary Library { get; private set; } = null!;
@@ -29,19 +30,26 @@ public partial class App : Application
         try
         {
             string? Arg(string name) { var index = Array.IndexOf(e.Args, name); return index >= 0 ? index + 1 < e.Args.Length ? e.Args[index + 1] : throw new ArgumentException($"{name} requires a path") : null; }
-            IsSandbox = e.Args.Contains("--demo") || e.Args.Contains("--desktop-dir");
-            IsVerifying = e.Args.Contains("--verify-ui");
+            IsPreview = e.Args.Contains("--preview");
+#if GLASS_PREVIEW
+            IsPreview = true;
+#endif
+            IsSandbox = IsPreview || e.Args.Contains("--demo") || e.Args.Contains("--desktop-dir");
+            IsVerifying = e.Args.Contains("--verify-ui") || e.Args.Contains("--verify-preview");
             if (e.Args.Contains("--verify-ui") && !e.Args.Contains("--demo")) throw new ArgumentException("--verify-ui requires --demo");
+            if (e.Args.Contains("--verify-glass") && !e.Args.Contains("--demo")) throw new ArgumentException("--verify-glass requires --demo");
+            if (e.Args.Contains("--verify-preview") && (!IsPreview || !e.Args.Contains("--demo"))) throw new ArgumentException("--verify-preview requires a preview build and --demo");
             bool updateVerification = e.Args.Any(a => a.StartsWith("--verify-update", StringComparison.Ordinal));
             if (updateVerification && !e.Args.Contains("--demo")) throw new ArgumentException("Update verification requires --demo");
-            DataDirectory = Path.GetFullPath(Arg("--data-dir") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lateraroot", IsSandbox ? "Demo" : "Data"));
-            DesktopDirectory = Path.GetFullPath(Arg("--desktop-dir") ?? (IsSandbox ? Path.Combine(DataDirectory, "DemoDesktop") : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)));
+            DataDirectory = Path.GetFullPath(Arg("--data-dir") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lateraroot", IsPreview ? "GlassPreview" : IsSandbox ? "Demo" : "Data"));
+            DesktopDirectory = Path.GetFullPath(Arg("--desktop-dir") ?? (e.Args.Contains("--demo") || IsSandbox && !IsPreview ? Path.Combine(DataDirectory, "DemoDesktop") : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)));
             if (DataDirectory.Equals(DesktopDirectory, StringComparison.OrdinalIgnoreCase) || DataDirectory.StartsWith(DesktopDirectory.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException("保存先はデスクトップの外に設定してください。");
             var identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(DataDirectory.ToUpperInvariant())))[..16];
             instance = new Mutex(true, "Local\\Lateraroot-" + identity, out bool first);
             if (!first) { MessageBox.Show("Lateraroot は起動済みです。通知領域のアイコンから開いてください。", "Lateraroot"); Shutdown(); return; }
             Directory.CreateDirectory(DataDirectory);
+            bool firstPreview = IsPreview && !File.Exists(SettingsPath);
             string? warning = null;
             try { Settings = JsonStore.Read(SettingsPath, () => new AppSettings()); Settings.Validate(); Settings.Upgrade(); }
             catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or InvalidDataException or ArgumentException)
@@ -51,9 +59,11 @@ public partial class App : Application
                 Settings = new(); warning = "設定ファイルを読み込めなかったため、元の設定を .invalid ファイルに保存して初期設定で起動しました。";
             }
             if (IsSandbox && e.Args.Contains("--demo")) CreateDemo();
-            Library = new DesktopLibrary(DataDirectory, DesktopDirectory, IsSandbox ? null : Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory));
+            if (firstPreview) { Settings.LiquidGlass = true; Settings.GenreIconsOnly = true; }
+            Library = new DesktopLibrary(DataDirectory, DesktopDirectory, IsSandbox && (!IsPreview || e.Args.Contains("--demo")) ? null : Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory));
             Trace("Library initialized");
             SystemParameters.StaticPropertyChanged += AppearanceChanged;
+            if (e.Args.Contains("--verify-glass")) { Dispatcher.BeginInvoke(async () => await GlassVerification.RunAsync()); return; }
             if (updateVerification) { Dispatcher.BeginInvoke(async () => await UpdateVerification.RunAsync(e.Args)); return; }
             var window = new MainWindow();
             Trace("Window constructed");
@@ -61,6 +71,7 @@ public partial class App : Application
             window.Show();
             Trace($"Window shown: visible={window.IsVisible}, {window.Left},{window.Top}, {window.ActualWidth}x{window.ActualHeight}");
             if (e.Args.Contains("--verify-ui")) Dispatcher.BeginInvoke(async () => await window.VerifyUiAsync());
+            if (e.Args.Contains("--verify-preview")) Dispatcher.BeginInvoke(async () => await window.VerifyPreviewAsync());
             if (warning is not null) MessageBox.Show(window, warning, "設定の復旧");
         }
         catch (Exception ex)
@@ -91,11 +102,12 @@ public partial class App : Application
         if (e.PropertyName is not (nameof(SystemParameters.HighContrast) or nameof(SystemParameters.ClientAreaAnimation))) return;
         Dispatcher.BeginInvoke(() =>
         {
+            GlassBackdrop.Refresh();
             foreach (MainWindow window in Windows.OfType<MainWindow>()) window.RefreshMotionPolicy();
             foreach (Window window in Windows)
                 if (window is SettingsWindow settings) settings.ApplyTransparency();
                 else GlassSurface.SetReduced(window, Settings.ReduceTransparency || SystemParameters.HighContrast);
         });
     }
-    protected override void OnExit(ExitEventArgs e) { SystemParameters.StaticPropertyChanged -= AppearanceChanged; instance?.Dispose(); base.OnExit(e); }
+    protected override void OnExit(ExitEventArgs e) { GlassBackdrop.Shutdown(); SystemParameters.StaticPropertyChanged -= AppearanceChanged; instance?.Dispose(); base.OnExit(e); }
 }

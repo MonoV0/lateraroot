@@ -252,8 +252,11 @@ public partial class MainWindow
             var stored = Host.Library.Organize(allItems.Where(x => x.CanOrganize));
             Check(stored.Succeeded == total && stored.Errors.Count == 0, "Explicit storage preserves the file workflow");
             await RefreshFilesAsync(force: true); Check(allItems.All(x => x.IsStored) && RestoreButton.IsEnabled, "Shared inspector tracks stored files");
-            var restored = Host.Library.Restore(allItems.Select(x => x.RecordId!));
-            Check(restored.Succeeded == total && restored.Errors.Count == 0, "Collision-safe restoration regression"); await RefreshFilesAsync(force: true);
+            SelectStack("media"); SearchBox.Text = "no-match";
+            Check(RestoreButton.IsEnabled, "Global restore remains available from an empty genre and empty search");
+            await RestoreAllAsync();
+            Check(!Host.Library.HasRecoveryEntries && StatusText.Text.StartsWith(total + " 個を復元"), "The same action as the restore button returns every stored genre"); await RefreshFilesAsync(force: true);
+            SearchBox.Text = ""; SelectStack("documents");
             Check(allItems.All(x => !x.IsStored), "Restored files have no duplicate library entries");
             WidgetMotion.TestOverride = null; Host.Settings.ReduceMotion = false;
             var delayed = new Border(); WidgetMotion.Reveal(delayed, DockEdge.Right, 7);
