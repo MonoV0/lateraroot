@@ -310,7 +310,7 @@ public partial class MainWindow : Window
         EmptyTitle.Text = catalog.IsReading && allItems.Count == 0 ? "ファイルを読み込んでいます…" : SearchBox.Text.Length > 0 ? "一致するファイルはありません" : "ファイルはありません";
         EmptyDescription.Visibility = widget ? Visibility.Collapsed : Visibility.Visible;
         EmptyDescription.Text = SearchBox.Text.Length > 0 ? "別のファイル名で検索してください。" : "分類ルールは設定から変更できます。";
-        RestoreButton.IsEnabled = items.Any(x => x.IsStored); OrganizeButton.IsEnabled = !organizePending && allItems.Any(x => x.CanOrganize);
+        RestoreButton.IsEnabled = Host.Library.HasRecoveryEntries; OrganizeButton.IsEnabled = !organizePending && allItems.Any(x => x.CanOrganize);
         ExpandAllButton.Background = DesktopEdgeWindow.ColorBrush(stack.Color);
         ExpandAllButton.Foreground = WidgetToggleArrow.Fill = WidgetVisuals.Ink(ExpandAllButton.Background);
     }
@@ -541,7 +541,7 @@ public partial class MainWindow : Window
             var items = allItems.Where(x => x.CanOrganize).ToList();
             if (items.Count == 0) return;
             modalDepth++;
-            var answer = MessageBox.Show(this, $"デスクトップの {items.Count} 個のファイル・フォルダーを Lateraroot に収納します。\n\n収納後もスタックから開けます。「元に戻す」で復元できます。\n共有デスクトップ・隠し項目は移動しません。\n\n保存先: {Host.Library.VaultPath}\n\n実行しますか？", "デスクトップを整理", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+            var answer = MessageBox.Show(this, $"デスクトップの {items.Count} 個のファイル・フォルダーを Lateraroot に収納します。\n\n収納後もスタックから開けます。「すべて元に戻す」で全ジャンルを復元できます。\n共有デスクトップ・隠し項目は移動しません。\n\n保存先: {Host.Library.VaultPath}\n\n実行しますか？", "デスクトップを整理", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
             EndModal();
             if (answer == MessageBoxResult.Yes) await RunOperation(() => Host.Library.Organize(items), "収納");
         }
@@ -550,9 +550,10 @@ public partial class MainWindow : Window
 
     private async void RestoreStack(object sender, RoutedEventArgs e)
     {
-        var ids = allItems.Where(x => x.StackId == selectedStack && x.RecordId is not null).Select(x => x.RecordId!).ToList();
-        await RunOperation(() => Host.Library.Restore(ids), "復元");
+        await RestoreAllAsync();
     }
+
+    private Task RestoreAllAsync() => RunOperation(Host.Library.RestoreAll, "復元");
 
     private async Task RunOperation(Func<OperationResult> operation, string verb)
     {
@@ -562,8 +563,8 @@ public partial class MainWindow : Window
         try
         {
             var result = await Task.Run(operation);
-            StatusText.Text = $"{result.Succeeded} 個を{verb}しました。";
-            if (result.Errors.Count > 0) ShowMessage($"{result.Errors.Count} 個の項目を処理できませんでした。\n" + string.Join("\n", result.Errors.Take(5)));
+            StatusText.Text = verb == "復元" && result.Succeeded == 0 && result.Errors.Count == 0 ? "復元対象はすでに元の場所にあります。" : $"{result.Succeeded} 個を{verb}しました。";
+            if (result.Errors.Count > 0) ShowMessage($"{result.Errors.Count} 件で確認が必要です。\n" + string.Join("\n", result.Errors.Take(5)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { ShowMessage(verb + "できませんでした。\n" + ex.Message); }
         finally { busy = false; Panel.IsEnabled = true; await RefreshFilesAsync(force: true); ApplyDeferredContext(); if (!IsMouseOver && !pinned) WindowLeave(this, null!); }

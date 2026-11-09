@@ -22,14 +22,18 @@ public sealed class DesktopLibrary
         records = JsonStore.Read(manifestPath, () => new List<StorageRecord>());
         foreach (var record in records)
         {
-            if (!Guid.TryParseExact(record.Id, "N", out _) || !Path.IsPathFullyQualified(record.OriginalPath) ||
-                !Path.IsPathFullyQualified(record.StoredPath) || !record.StoredPath.StartsWith(vault + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(Path.GetDirectoryName(record.StoredPath), Path.Combine(vault, record.Id), StringComparison.OrdinalIgnoreCase))
+            if (record is null || !Guid.TryParseExact(record.Id, "N", out _) || !Path.IsPathFullyQualified(record.OriginalPath) ||
+                !Path.IsPathFullyQualified(record.StoredPath) || !IsVaultEntry(record))
                 throw new InvalidDataException("収納履歴が不正です。library.json を確認してください。");
         }
     }
 
     public string VaultPath => vault;
+    public bool HasRecoveryEntries { get { lock (gate) return records.Count > 0; } }
+    public OperationResult RestoreAll()
+    {
+        lock (gate) return Restore(records.Select(record => record.Id).ToArray());
+    }
 
     public IReadOnlyList<DesktopItem> Scan(AppSettings settings, string? query = null)
     {
@@ -77,7 +81,8 @@ public sealed class DesktopLibrary
         {
             var errors = new List<string>();
             int moved = 0;
-            foreach (var item in items.Where(x => x.CanOrganize && !x.IsStored).DistinctBy(x => x.Path))
+            string? batch = null;
+            foreach (var item in items.Where(x => x.CanOrganize && !x.IsStored).DistinctBy(x => x.Path, StringComparer.OrdinalIgnoreCase))
             {
                 StorageRecord? record = null;
                 try
@@ -85,9 +90,9 @@ public sealed class DesktopLibrary
                     if (!string.Equals(Path.GetDirectoryName(Path.GetFullPath(item.Path)), desktop, StringComparison.OrdinalIgnoreCase) || item.Name != Path.GetFileName(item.Path)) throw new IOException("デスクトップ直下の項目のみ収納できます。");
                     var attrs = File.GetAttributes(item.Path);
                     if ((attrs & (FileAttributes.ReparsePoint | FileAttributes.System | FileAttributes.Hidden)) != 0) throw new IOException("システム項目・リンク先は収納しません。");
+                    batch ??= CreateBatchDirectory();
                     record = new StorageRecord { OriginalPath = Path.GetFullPath(item.Path) };
-                    record.StoredPath = Path.Combine(vault, record.Id, item.Name);
-                    Directory.CreateDirectory(Path.GetDirectoryName(record.StoredPath)!);
+                    record.StoredPath = Path.Combine(batch, item.Name);
                     records.Add(record);
                     JsonStore.Write(manifestPath, records);
                     Move(item.Path, record.StoredPath);
@@ -97,7 +102,14 @@ public sealed class DesktopLibrary
                 {
                     errors.Add($"{item.Name}: {ex.Message}");
                     // Keep the durable journal on failure: it also covers a crash during a move.
-                    if (record is not null && !Exists(record.StoredPath)) records.Remove(record);
+                    if (record is not null && !Exists(record.StoredPath) && Exists(record.OriginalPath))
+                    {
+                        records.Remove(record);
+                        try { JsonStore.Write(manifestPath, records); }
+                        catch (Exception journalError) when (journalError is IOException or UnauthorizedAccessException) { errors.Add("履歴更新に失敗しました: " + journalError.Message); }
+                        RemoveEmptyContainer(record);
+                        if (batch is not null && !Directory.Exists(batch)) batch = null;
+                    }
                 }
             }
             return new(moved, errors);
@@ -113,23 +125,54 @@ public sealed class DesktopLibrary
             foreach (var id in recordIds.Distinct())
             {
                 var record = records.FirstOrDefault(x => x.Id == id);
-                if (record is null || !Exists(record.StoredPath)) continue;
+                if (record is null) continue;
+                bool moved = false;
                 try
                 {
+                    if (!Exists(record.StoredPath))
+                    {
+                        if (!Exists(record.OriginalPath)) { errors.Add($"{Path.GetFileName(record.OriginalPath)}: 収納先と元の場所のどちらにも見つかりません。履歴を保持しました。"); continue; }
+                        // A manual recovery or a crash after Move may leave a stale entry.
+                        records.Remove(record); JsonStore.Write(manifestPath, records); RemoveEmptyContainer(record); continue;
+                    }
                     Directory.CreateDirectory(Path.GetDirectoryName(record.OriginalPath)!);
                     var target = AvailablePath(record.OriginalPath, Directory.Exists(record.StoredPath));
                     // Flush recovery destination first. A crash after Move is harmless: the original is already restored.
                     record.OriginalPath = target;
                     JsonStore.Write(manifestPath, records);
                     Move(record.StoredPath, target);
+                    moved = true; restored++;
                     records.Remove(record);
                     JsonStore.Write(manifestPath, records);
-                    restored++;
+                    RemoveEmptyContainer(record);
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { errors.Add($"{Path.GetFileName(record.StoredPath)}: {ex.Message}"); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { errors.Add($"{Path.GetFileName(record.StoredPath)}: {(moved ? "ファイルは復元済みですが履歴更新に失敗しました。" : "")}{ex.Message}"); }
             }
             return new(restored, errors);
         }
+    }
+
+    private bool IsVaultEntry(StorageRecord record)
+    {
+        string? parent = Path.GetDirectoryName(Path.GetFullPath(record.StoredPath));
+        if (parent is null || !string.Equals(Path.GetDirectoryName(parent), vault, StringComparison.OrdinalIgnoreCase)) return false;
+        string folder = Path.GetFileName(parent);
+        return string.Equals(folder, record.Id, StringComparison.OrdinalIgnoreCase) ||
+            System.Text.RegularExpressions.Regex.IsMatch(folder, @"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?$");
+    }
+    private string CreateBatchDirectory()
+    {
+        string name = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", System.Globalization.CultureInfo.InvariantCulture);
+        string candidate = Path.Combine(vault, name);
+        for (int i = 2; Exists(candidate); i++) candidate = Path.Combine(vault, name + "-" + i);
+        Directory.CreateDirectory(candidate); return candidate;
+    }
+    private void RemoveEmptyContainer(StorageRecord record)
+    {
+        if (!IsVaultEntry(record)) return;
+        string parent = Path.GetDirectoryName(Path.GetFullPath(record.StoredPath))!;
+        try { if (Directory.Exists(parent) && !Directory.EnumerateFileSystemEntries(parent).Any()) Directory.Delete(parent, recursive: false); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* Only optional empty-container cleanup failed. */ }
     }
 
     private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);

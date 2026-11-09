@@ -223,8 +223,11 @@ public partial class MainWindow
             var stored = Host.Library.Organize(allItems.Where(x => x.CanOrganize));
             Check(stored.Succeeded == total && stored.Errors.Count == 0, "Explicit storage preserves the file workflow");
             await RefreshFilesAsync(force: true); Check(allItems.All(x => x.IsStored) && RestoreButton.IsEnabled, "Shared inspector tracks stored files");
-            var restored = Host.Library.Restore(allItems.Select(x => x.RecordId!));
-            Check(restored.Succeeded == total && restored.Errors.Count == 0, "Collision-safe restoration regression"); await RefreshFilesAsync(force: true);
+            SelectStack("media"); SearchBox.Text = "no-match";
+            Check(RestoreButton.IsEnabled, "Global restore remains available from an empty genre and empty search");
+            await RestoreAllAsync();
+            Check(!Host.Library.HasRecoveryEntries && StatusText.Text.StartsWith(total + " 個を復元"), "The same action as the restore button returns every stored genre"); await RefreshFilesAsync(force: true);
+            SearchBox.Text = ""; SelectStack("documents");
             Check(allItems.All(x => !x.IsStored), "Restored files have no duplicate library entries");
             WidgetMotion.TestOverride = null; Host.Settings.ReduceMotion = false;
             var delayed = new Border(); WidgetMotion.Reveal(delayed, DockEdge.Right, 7);
@@ -254,7 +257,7 @@ public partial class MainWindow
             await Task.Delay(250); Check(Math.Abs(hoverInk.Opacity - .08) < .001, "Hover reaches visible feedback");
             hoverButton.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseLeaveEvent });
             await Task.Delay(180); Check(hoverInk.Opacity == 0, "Hover exit releases its state layer");
-            SetDockVisibility(DockVisibility.Minimized); await Task.Delay(60); Check(Frame.Opacity is > 0 and < 1, "Minimize fades the current surface before switching");
+            SetDockVisibility(DockVisibility.Minimized); Check(hidingSurface && Frame.HasAnimatedProperties && Rail.IsVisible && !MinimizedTab.IsVisible, "Minimize schedules its fade before switching the current surface");
             await Task.Delay(500); Check(MinimizedTab.IsVisible && MinimizedTab.Opacity == 1, "Minimize completes with a stable access tab");
             RestoreDock(); SetDockVisibility(DockVisibility.Hidden); await Task.Delay(35); RestoreDock(); await Task.Delay(500);
             Check(IsVisible && Host.Settings.Visibility == DockVisibility.Visible && Frame.Opacity == 1, "Rapid restore invalidates a pending hide callback");

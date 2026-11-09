@@ -133,7 +133,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <Button x:Name="OrganizeButton" Content="デスクトップを整理" Click="OrganizeDesktop" Foreground="White" Background="#171717" MinHeight="44"/>
-                        <Button x:Name="RestoreButton" Grid.Column="1" Content="元に戻す" Click="RestoreStack" Margin="8,0,0,0" MinHeight="44"/>
+                        <Button x:Name="RestoreButton" Grid.Column="1" Content="すべて元に戻す" ToolTip="選択ジャンルや検索条件に関係なく、収納したすべての項目を復元します" Click="RestoreStack" Margin="8,0,0,0" MinHeight="44"/>
                     </Grid>
                 </Border>
                 <TextBlock x:Name="StatusText" Grid.Row="4" Grid.Column="1" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
